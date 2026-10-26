@@ -1,8 +1,9 @@
-from typing import Optional
-from fastapi import FastAPI, Body
+from typing import Any, Dict, Optional
+from fastapi import FastAPI, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.core.auth import get_current_user
 from app.models.schemas import (
     HealthResponse,
     InvestigationResponse,
@@ -50,9 +51,12 @@ async def list_clusters():
     """List all Kubernetes clusters and contexts configured in local kubeconfig."""
     return cluster_manager.get_clusters()
 
-# Core on-demand investigation endpoint
+# Core on-demand investigation endpoint (Protected by InsForge Auth)
 @app.post("/investigate", response_model=InvestigationResponse, tags=["investigation"])
-async def investigate(payload: Optional[InvestigationRequest] = Body(default=None)):
+async def investigate(
+    payload: Optional[InvestigationRequest] = Body(default=None),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
     """Run on-demand Kubernetes investigation to collect troubleshooting evidence and AI SRE diagnosis."""
     namespace = payload.namespace if payload else None
     context = (payload.context or payload.cluster) if payload else None
@@ -62,6 +66,7 @@ async def investigate(payload: Optional[InvestigationRequest] = Body(default=Non
         namespace=namespace,
         context=context,
         scenario=scenario,
+        user_id=user.get("id"),
     )
     return result
 

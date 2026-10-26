@@ -16,23 +16,45 @@ export const insforge = createClient({
 export const insforgeService = {
   // --- Auth API ---
   async signIn(email: string, password: string) {
-    return await insforge.auth.signInWithPassword({ email, password });
+    const res = await insforge.auth.signInWithPassword({ email, password });
+    if (res.data?.accessToken && typeof window !== "undefined") {
+      localStorage.setItem("insforge_access_token", res.data.accessToken);
+    }
+    return res;
   },
 
   async signUp(email: string, password: string, name?: string) {
-    return await insforge.auth.signUp({
+    const res = await insforge.auth.signUp({
       email,
       password,
       name: name || email.split("@")[0],
     });
+    if ((res.data as any)?.accessToken && typeof window !== "undefined") {
+      localStorage.setItem("insforge_access_token", (res.data as any).accessToken);
+    }
+    return res;
   },
 
   async signOut() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("insforge_access_token");
+    }
     return await insforge.auth.signOut();
   },
 
   async getCurrentUser() {
     return await insforge.auth.getCurrentUser();
+  },
+
+  getAccessToken(): string | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const fromSdk = (insforge as any).tokenManager?.getAccessToken();
+      if (fromSdk) return fromSdk;
+    } catch {
+      // Ignore SDK inspection error
+    }
+    return localStorage.getItem("insforge_access_token");
   },
 
   // --- Investigations Database API ---

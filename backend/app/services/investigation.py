@@ -26,6 +26,7 @@ class InvestigationService:
         namespace: Optional[str] = None,
         context: Optional[str] = None,
         scenario: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Execute the complete troubleshooting pipeline for a target cluster or test scenario."""
         target_ctx = context or "default"
@@ -33,13 +34,14 @@ class InvestigationService:
 
         # --- Test Scenarios Support ---
         if scenario:
-            logger.info(f"Running simulated failure test scenario: '{scenario}'")
+            logger.info(f"Running simulated failure test scenario: '{scenario}' (user: {user_id or 'anon'})")
             evidence = InvestigationService._build_scenario_evidence(scenario, target_ns)
             diagnosis = await root_cause_analyzer.analyze(investigation=evidence)
             return {
                 "status": "success",
                 "diagnosis": diagnosis,
                 "investigation": evidence,
+                "user_id": user_id,
             }
 
         # --- Real Cluster Investigation ---
@@ -101,6 +103,7 @@ class InvestigationService:
             "status": "success",
             "diagnosis": diagnosis,
             "investigation": investigation_payload,
+            "user_id": user_id,
         }
 
     @staticmethod

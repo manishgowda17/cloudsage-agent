@@ -12,7 +12,12 @@ try:
         API_V1_STR: str = "/api/v1"
         HOST: str = "0.0.0.0"
         PORT: int = 8000
-        CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+        CORS_ORIGINS: Union[List[str], str] = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ]
 
         @field_validator("CORS_ORIGINS", mode="before")
         def parse_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
@@ -27,6 +32,10 @@ try:
         # Google Gemini API configuration
         GEMINI_API_KEY: str = ""
         GEMINI_MODEL: str = "gemini-2.5-flash"
+
+        # InsForge Auth and Verification configuration
+        INSFORGE_URL: str = "https://mucsd7yw.us-east.insforge.app"
+        INSFORGE_ANON_KEY: str = "anon_57cbe317689f3e724ced0051c10d088eab9ddc1123ce564702735a7dcb764eb8"
 
         # Legacy optional OpenRouter fallback
         OPENROUTER_API_KEY: str = ""
@@ -49,9 +58,19 @@ except ImportError:
         API_V1_STR: str = "/api/v1"
         HOST: str = os.environ.get("HOST", "0.0.0.0")
         PORT: int = int(os.environ.get("PORT", "8000"))
-        CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+        CORS_ORIGINS: List[str] = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ]
         GEMINI_API_KEY: str = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
         GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        INSFORGE_URL: str = os.environ.get("INSFORGE_URL", "https://mucsd7yw.us-east.insforge.app")
+        INSFORGE_ANON_KEY: str = os.environ.get(
+            "INSFORGE_ANON_KEY",
+            "anon_57cbe317689f3e724ced0051c10d088eab9ddc1123ce564702735a7dcb764eb8",
+        )
         OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
         OPENROUTER_MODEL: str = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
         KUBECONFIG_PATH: str = os.environ.get("KUBECONFIG_PATH", "")

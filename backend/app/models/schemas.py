@@ -62,3 +62,4 @@ class InvestigationResponse(BaseModel):
     status: str = Field(default="success")
     diagnosis: DiagnosisResult
     investigation: Optional[Dict[str, Any]] = Field(default=None, description="Underlying Kubernetes evidence")
+    user_id: Optional[str] = Field(default=None, description="Authenticated user ID who triggered investigation")

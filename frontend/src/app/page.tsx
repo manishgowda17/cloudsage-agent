@@ -206,6 +206,10 @@ export default function DashboardPage() {
         throw new Error("No diagnosis returned from backend");
       }
     } catch (err: any) {
+      if (err?.response?.status === 401) {
+        setUser(null);
+        setAuthModalOpen(true);
+      }
       const message =
         err?.response?.data?.detail ||
         err?.message ||
