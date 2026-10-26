@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CheckCircle2, Loader2, Circle } from "lucide-react";
+import { CheckCircle2, Loader2, Circle, Activity, Sparkles } from "lucide-react";
 import { ProgressStep } from "@/types";
 
 interface InvestigationProgressProps {
@@ -17,19 +17,22 @@ export const InvestigationProgress: React.FC<InvestigationProgressProps> = ({
     return null;
   }
 
+  const completedCount = steps.filter((s) => s.status === "completed").length;
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
-        <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-          Investigation Progress
+    <div className="bg-white/85 backdrop-blur-xl border border-blue-200/80 rounded-2xl p-5 mb-6 shadow-luminous transition-all">
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
+          Live Investigation Telemetry Pipeline
           {isActive && (
-            <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full animate-pulse">
-              Live SRE Triage
+            <span className="text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full animate-pulse">
+              Active Triage
             </span>
           )}
         </h3>
-        <span className="text-xs text-slate-400">
-          {steps.filter((s) => s.status === "completed").length} of {steps.length} completed
+        <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+          {completedCount} of {steps.length} Phases Complete
         </span>
       </div>
 
@@ -41,22 +44,22 @@ export const InvestigationProgress: React.FC<InvestigationProgressProps> = ({
           return (
             <div
               key={step.id}
-              className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs transition-all ${
+              className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs transition-all ${
                 isCompleted
-                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
+                  ? "bg-emerald-50/80 border-emerald-200 text-emerald-900 shadow-xs"
                   : isInProgress
-                  ? "bg-blue-500/10 border-blue-500/30 text-blue-300 shadow-sm"
-                  : "bg-slate-800/40 border-slate-800 text-slate-500"
+                  ? "bg-blue-50 border-blue-300 text-blue-900 shadow-sm ring-2 ring-blue-500/20"
+                  : "bg-slate-50/60 border-slate-200/70 text-slate-400"
               }`}
             >
               {isCompleted ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               ) : isInProgress ? (
-                <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+                <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
               ) : (
-                <Circle className="w-4 h-4 text-slate-600 shrink-0" />
+                <Circle className="w-4 h-4 text-slate-300 shrink-0" />
               )}
-              <span className="font-medium truncate">{step.label}</span>
+              <span className="font-bold truncate">{step.label}</span>
             </div>
           );
         })}

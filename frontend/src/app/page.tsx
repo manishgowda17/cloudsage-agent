@@ -7,6 +7,10 @@ import { ClusterSelector } from "@/components/ClusterSelector";
 import { InvestigationProgress } from "@/components/InvestigationProgress";
 import { RootCauseCard } from "@/components/RootCauseCard";
 import { InvestigationHistory } from "@/components/InvestigationHistory";
+import { KineticTypography } from "@/components/KineticTypography";
+import { SwirlingVortex } from "@/components/SwirlingVortex";
+import { InfrastructureMap3D } from "@/components/InfrastructureMap3D";
+import { CinematicReveal } from "@/components/CinematicReveal";
 import { investigationService } from "@/services/investigationService";
 import { insforgeService } from "@/services/insforge";
 import {
@@ -25,6 +29,9 @@ import {
   RefreshCw,
   Sparkles,
   CheckCircle2,
+  Terminal,
+  Activity,
+  ArrowRight,
 } from "lucide-react";
 
 const INITIAL_STEPS: ProgressStep[] = [
@@ -43,6 +50,9 @@ export default function DashboardPage() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Cinematic Reveal state
+  const [revealOpen, setRevealOpen] = useState(false);
+
   // Clusters state
   const [clusters, setClusters] = useState<ClusterItem[]>([]);
   const [selectedContext, setSelectedContext] = useState<string | null>(null);
@@ -59,11 +69,23 @@ export default function DashboardPage() {
   const [historyItems, setHistoryItems] = useState<InvestigationHistoryItem[]>([]);
   const [isHealthy, setIsHealthy] = useState(true);
 
+  // Active step ID for 3D map telemetry focus
+  const [activeStepId, setActiveStepId] = useState<string>("pods");
+
   // 1. Initial load
   useEffect(() => {
     checkCurrentUser();
     checkHealth();
     loadClusters();
+
+    // Check if user has already seen cinematic reveal
+    if (typeof window !== "undefined") {
+      const hasSeen = localStorage.getItem("has_seen_reveal");
+      if (!hasSeen) {
+        setRevealOpen(true);
+        localStorage.setItem("has_seen_reveal", "true");
+      }
+    }
   }, []);
 
   const checkCurrentUser = async () => {
@@ -123,6 +145,7 @@ export default function DashboardPage() {
   };
 
   const setInProgress = (stepId: ProgressStepId) => {
+    setActiveStepId(stepId);
     setSteps((prev) =>
       prev.map((s) => (s.id === stepId ? { ...s, status: "in_progress" } : s))
     );
@@ -220,79 +243,114 @@ export default function DashboardPage() {
     }
   };
 
+  const selectedCluster = clusters.find((c) => c.context === selectedContext) || clusters[0] || null;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 selection:bg-blue-600 selection:text-white">
+    <div className="relative min-h-screen bg-[#fbfbfa] text-slate-800 selection:bg-blue-600/20 selection:text-blue-900 pb-16">
+      {/* Global Swirling Atmospheric Vortex in Background */}
+      <SwirlingVortex
+        className="opacity-60"
+        intensity="gentle"
+        blurAmount={65}
+        activeSurge={isInvestigating}
+      />
+
       {/* Header */}
       <Header
         user={user}
         onOpenAuth={() => setAuthModalOpen(true)}
         onSignOut={handleSignOut}
         isHealthy={isHealthy}
+        onOpenReveal={() => setRevealOpen(true)}
       />
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="relative z-10 max-w-5xl mx-auto px-4 py-8">
         {/* Unauthenticated Lock Screen */}
         {!user && !authLoading ? (
-          <div className="max-w-md mx-auto my-12 bg-slate-900/90 border border-slate-800 rounded-2xl p-8 text-center shadow-2xl">
-            <div className="w-14 h-14 bg-blue-600/20 text-blue-400 rounded-2xl border border-blue-500/30 mx-auto flex items-center justify-center mb-4">
-              <Lock className="w-7 h-7" />
+          <div className="relative max-w-lg mx-auto my-14 bg-white/90 backdrop-blur-2xl border border-slate-200/90 rounded-3xl p-8 sm:p-10 text-center shadow-floating">
+            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl border border-blue-200/80 mx-auto flex items-center justify-center mb-5 shadow-xs">
+              <Lock className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">
-              Protected SRE Dashboard
-            </h2>
-            <p className="text-sm text-slate-400 mb-6 leading-relaxed">
-              Sign in with your InsForge account to investigate local Kubernetes clusters,
-              diagnose failures with AI, and review incident records.
+
+            <div className="mb-4">
+              <KineticTypography
+                text="Your infrastructure. Understood."
+                as="h2"
+                delayMs={150}
+                staggerMs={28}
+                className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight leading-tight justify-center flex flex-wrap"
+                highlightWord="Understood."
+              />
+            </div>
+
+            <p className="text-sm text-slate-600 mb-8 leading-relaxed max-w-sm mx-auto">
+              Sign in with your InsForge account to investigate local clusters,
+              evaluate liveness and readiness probe failures, and receive AI remediation.
             </p>
+
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.01]"
             >
               <Sparkles className="w-4 h-4" />
-              Sign In to Continue
+              <span>Authenticate to Enter</span>
             </button>
           </div>
         ) : (
           <>
-            {/* Top Action Card */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 mb-6 shadow-sm">
+            {/* Hero & Workspace Action Stage */}
+            <div className="relative bg-white/85 backdrop-blur-xl border border-slate-200/80 rounded-3xl p-6 sm:p-8 mb-6 shadow-luminous overflow-hidden">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight mb-1">
-                    Troubleshoot Kubernetes with AI
-                  </h2>
-                  <p className="text-sm text-slate-400">
-                    On-demand evidence gathering and Senior SRE reasoning for your local clusters.
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold mb-3">
+                    <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Next-Gen Kubernetes Triage</span>
+                  </div>
+
+                  <KineticTypography
+                    text="Your infrastructure. Understood."
+                    as="h2"
+                    delayMs={100}
+                    staggerMs={22}
+                    className="text-2xl sm:text-4xl font-extrabold text-slate-950 tracking-tight leading-tight flex flex-wrap"
+                    highlightWord="Understood."
+                  />
+
+                  <p className="text-xs sm:text-sm text-slate-600 mt-2 max-w-lg leading-relaxed">
+                    On-demand evidence gathering, probe inspection, and Senior SRE
+                    reasoning powered by Google Gemini and InsForge.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs">
+                  {/* Namespace Selector */}
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-3 py-2 text-xs">
                     <Layers className="w-4 h-4 text-slate-400" />
-                    <span className="text-slate-400 font-medium">Namespace:</span>
+                    <span className="text-slate-500 font-bold">Namespace:</span>
                     <input
                       type="text"
                       value={namespace}
                       onChange={(e) => setNamespace(e.target.value)}
                       placeholder="default"
-                      className="bg-transparent text-white font-mono focus:outline-none w-28"
+                      className="bg-transparent text-slate-900 font-mono font-semibold focus:outline-none w-24"
                     />
                   </div>
 
+                  {/* Investigate Cluster Button */}
                   <button
                     onClick={() => triggerInvestigation()}
                     disabled={isInvestigating}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/25 transition transform active:scale-95"
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/25 transition-all transform active:scale-95"
                   >
                     {isInvestigating ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Investigating...
+                        <span>Investigating...</span>
                       </>
                     ) : (
                       <>
                         <Play className="w-4 h-4 fill-white" />
-                        Investigate Cluster
+                        <span>Investigate Cluster</span>
                       </>
                     )}
                   </button>
@@ -300,7 +358,19 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Clusters Selector from Kubeconfig */}
+            {/* Dimensional 3D Infrastructure Map */}
+            <InfrastructureMap3D
+              cluster={selectedCluster}
+              namespace={namespace}
+              isInvestigating={isInvestigating}
+              currentStep={activeStepId}
+              onSelectTarget={(target) => {
+                console.log("Selected infrastructure component:", target);
+              }}
+              className="mb-6"
+            />
+
+            {/* Clusters Selector from Kubeconfig & Scenario Bench */}
             <ClusterSelector
               clusters={clusters}
               selectedContext={selectedContext}
@@ -314,69 +384,69 @@ export default function DashboardPage() {
               isLoading={isInvestigating}
             />
 
-            {/* Beginner-friendly Error Notification */}
+            {/* Error Notification */}
             {errorMsg && (
-              <div className="mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-sm">
+              <div className="mb-6 p-5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-sm shadow-sm animate-in fade-in duration-200">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-semibold text-rose-200">Unable to Connect to Kubernetes Cluster</p>
-                    <p className="text-xs text-rose-300/90 mt-1 leading-relaxed">
+                    <p className="font-bold text-rose-950">
+                      Unable to Complete Investigation
+                    </p>
+                    <p className="text-xs text-rose-800 mt-1 leading-relaxed">
                       {errorMsg}
                     </p>
-                    <div className="mt-3 p-3 rounded-lg bg-black/40 border border-rose-500/20 text-xs font-mono text-slate-300 space-y-1">
-                      <p className="text-slate-400 font-semibold mb-1">Troubleshooting Checklist:</p>
-                      <p>✓ Verify cluster daemon: Make sure Docker Desktop, Minikube, or Kind is running</p>
-                      <p>✓ Check kubeconfig path: Confirm ~/.kube/config exists and points to active server</p>
-                      <p>✓ Check kubectl permissions: Run &apos;kubectl cluster-info&apos; in terminal</p>
+                    <div className="mt-3 p-3.5 rounded-xl bg-white/80 border border-rose-200 text-xs font-mono text-slate-700 space-y-1">
+                      <p className="text-slate-900 font-bold mb-1">
+                        Troubleshooting Checklist:
+                      </p>
+                      <p>• Verify cluster daemon: Make sure Docker Desktop, Minikube, or Kind is running</p>
+                      <p>• Check kubeconfig path: Confirm ~/.kube/config points to active API server</p>
+                      <p>• Check credentials: Run &apos;kubectl cluster-info&apos; in terminal to verify connection</p>
                     </div>
                   </div>
                   <button
                     onClick={() => triggerInvestigation()}
-                    className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 rounded text-xs text-rose-200 transition flex items-center gap-1 shrink-0"
+                    className="px-3.5 py-1.5 bg-rose-100 hover:bg-rose-200 rounded-lg text-xs font-bold text-rose-800 transition flex items-center gap-1.5 shrink-0"
                   >
-                    <RefreshCw className="w-3 h-3" /> Retry
+                    <RefreshCw className="w-3.5 h-3.5" /> Retry
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Loading Banner when active */}
-            {isInvestigating && (
-              <div className="mb-4 p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center gap-2.5 text-blue-300 text-xs">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
-                <span className="font-medium">{investigationTitle}</span>
-              </div>
-            )}
-
-            {/* Live Realtime Investigation Progress */}
+            {/* Investigation Progress Pipeline */}
             <InvestigationProgress steps={steps} isActive={isInvestigating} />
 
-            {/* Root Cause Card / Healthy Cluster Display */}
+            {/* Diagnosis Result Card */}
             {currentDiagnosis && (
               <>
                 {currentDiagnosis.root_cause.toLowerCase().includes("healthy") ? (
-                  <div className="bg-slate-900 border border-emerald-500/30 rounded-xl p-6 mb-6 text-center shadow-lg">
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 mx-auto flex items-center justify-center mb-3">
+                  <div className="bg-white/90 backdrop-blur-xl border border-emerald-200 rounded-2xl p-8 mb-6 text-center shadow-luminous">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center mb-3">
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
-                    <h3 className="text-base font-bold text-white mb-1">
-                      No Critical Kubernetes Issues Detected
+                    <h3 className="text-base font-bold text-slate-900 mb-1">
+                      All Inspected Resources are Healthy
                     </h3>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto mb-3">
-                      All inspected pods are running normally, deployments have desired replicas, and services have healthy backend endpoints.
+                    <p className="text-xs text-slate-600 max-w-md mx-auto mb-3">
+                      Pods are running normally, desired replicas match available counts,
+                      and probe checks are passing with zero warnings.
                     </p>
-                    <div className="inline-block px-3 py-1 bg-slate-800 rounded-full font-mono text-[11px] text-emerald-400">
+                    <div className="inline-block px-3 py-1 bg-emerald-50 rounded-full font-mono text-[11px] font-bold text-emerald-800 border border-emerald-200">
                       Cluster Health: 100% Operational
                     </div>
                   </div>
                 ) : (
-                  <RootCauseCard diagnosis={currentDiagnosis} namespace={namespace} />
+                  <RootCauseCard
+                    diagnosis={currentDiagnosis}
+                    namespace={namespace}
+                  />
                 )}
               </>
             )}
 
-            {/* Recent Investigations History */}
+            {/* Investigation History Table */}
             <InvestigationHistory
               items={historyItems}
               onSelect={(item) => {
@@ -387,12 +457,23 @@ export default function DashboardPage() {
                   kubectl_command: item.kubectl_command || "",
                   confidence: item.confidence,
                 });
-                window.scrollTo({ top: 150, behavior: "smooth" });
+                window.scrollTo({ top: 180, behavior: "smooth" });
               }}
             />
           </>
         )}
       </main>
+
+      {/* Cinematic Product Reveal Modal */}
+      <CinematicReveal
+        isOpen={revealOpen}
+        onClose={() => setRevealOpen(false)}
+        onExplore={() => {
+          if (!user) {
+            setAuthModalOpen(true);
+          }
+        }}
+      />
 
       {/* Auth Modal */}
       <AuthModal

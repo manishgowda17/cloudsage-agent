@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { insforgeService } from "@/services/insforge";
-import { Lock, Mail, AlertCircle, X, Loader2 } from "lucide-react";
+import { Lock, Mail, AlertCircle, X, Loader2, Sparkles, Key } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -32,7 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (isSignUp) {
         const { data, error } = await insforgeService.signUp(email, password);
         if (error) {
-          setErrorMsg(error.message || "Sign up failed");
+          setErrorMsg(error.message || "Registration failed");
         } else {
           onSuccess(data?.user || { email });
           onClose();
@@ -54,65 +54,65 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md bg-white/95 backdrop-blur-2xl border border-slate-200/90 rounded-3xl p-8 shadow-floating">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 text-slate-400 hover:text-white"
+          className="absolute right-5 top-5 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="text-center mb-6">
-          <div className="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30 mx-auto flex items-center justify-center mb-3">
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl border border-blue-200/80 mx-auto flex items-center justify-center mb-3 shadow-xs">
             <Lock className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-bold text-white">
-            {isSignUp ? "Create SRE Account" : "Sign In to InsForge"}
+          <h2 className="text-xl font-extrabold text-slate-900">
+            {isSignUp ? "Create SRE Engineer Account" : "Sign In to InsForge"}
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Authenticate to trigger Kubernetes investigations and view diagnosis history.
+          <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+            Authenticate to trigger Kubernetes investigations and persist incident records.
           </p>
         </div>
 
         {errorMsg && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-start gap-2 text-rose-400 text-xs">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-rose-700 text-xs">
+            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-rose-600" />
             <span>{errorMsg}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="engineer@company.com"
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <Key className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                placeholder="••••••••••••"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition"
               />
             </div>
           </div>
@@ -120,23 +120,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
           >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isSignUp ? "Sign Up" : "Sign In"}
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : isSignUp ? (
+              "Create Account"
+            ) : (
+              "Sign In to Dashboard"
+            )}
           </button>
         </form>
 
-        <div className="mt-5 text-center text-xs text-slate-400">
-          {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
+        <div className="mt-5 text-center">
           <button
             onClick={() => {
               setIsSignUp(!isSignUp);
               setErrorMsg(null);
             }}
-            className="text-blue-400 hover:underline font-medium"
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
           >
-            {isSignUp ? "Sign In" : "Create one"}
+            {isSignUp
+              ? "Already have an account? Sign In"
+              : "Don't have an account? Create one"}
           </button>
         </div>
       </div>
