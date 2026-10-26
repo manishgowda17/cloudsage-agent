@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: default
+  labels:
+    app: payment-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: payment-api
+        image: alpine:latest
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "Starting payment-service v1.0.0...";
+          if [ -z "$DATABASE_URL" ]; then
+            echo "FATAL: Missing environment variable DATABASE_URL. Cannot connect to database.";
+            exit 1;
+          fi;
+          echo "Connected successfully to $DATABASE_URL";
+          sleep 3600;

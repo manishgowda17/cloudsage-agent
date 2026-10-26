@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: default
+  labels:
+    app: orders-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders-backend
+  template:
+    metadata:
+      labels:
+        app: orders-backend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: default
+spec:
+  type: ClusterIP
+  selector:
+    app: order-processor  # Mismatched selector! Should be 'orders-backend'
+  ports:
+  - port: 80
+    targetPort: 80

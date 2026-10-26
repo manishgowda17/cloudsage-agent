@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: analytics-worker
+  namespace: default
+  labels:
+    app: analytics-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: analytics-worker
+  template:
+    metadata:
+      labels:
+        app: analytics-worker
+    spec:
+      containers:
+      - name: worker
+        image: python:3.11-alpine
+        command: ["python", "-c"]
+        args:
+        - "import time; print('Allocating memory beyond limits...'); a = ' ' * (100 * 1024 * 1024); time.sleep(60)"
+        resources:
+          limits:
+            memory: "16Mi"
+          requests:
+            memory: "8Mi"
