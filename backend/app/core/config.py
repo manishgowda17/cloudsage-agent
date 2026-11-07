@@ -2,6 +2,12 @@
 
 import os
 from typing import List, Union
+from dotenv import load_dotenv
+
+# Automatically load backend/.env
+_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
+load_dotenv(_env_path)
+load_dotenv(".env")
 
 try:
     from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,14 +43,21 @@ try:
         INSFORGE_URL: str = "https://mucsd7yw.us-east.insforge.app"
         INSFORGE_ANON_KEY: str = "anon_57cbe317689f3e724ced0051c10d088eab9ddc1123ce564702735a7dcb764eb8"
 
+        # Hindsight Long-term Agent Memory configuration
+        HINDSIGHT_URL: str = "http://localhost:8888"
+        HINDSIGHT_CONTROL_PLANE_URL: str = "http://localhost:9999"
+        HINDSIGHT_ENABLED: bool = True
+        HINDSIGHT_TIMEOUT_SECONDS: float = 10.0
+
         # Legacy optional OpenRouter fallback
         OPENROUTER_API_KEY: str = ""
         OPENROUTER_MODEL: str = "anthropic/claude-3.5-sonnet"
 
         KUBECONFIG_PATH: str = ""
 
+        _env_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
         model_config = SettingsConfigDict(
-            env_file=".env",
+            env_file=(_env_file, ".env"),
             env_file_encoding="utf-8",
             case_sensitive=True,
             extra="ignore",
@@ -71,6 +84,10 @@ except ImportError:
             "INSFORGE_ANON_KEY",
             "anon_57cbe317689f3e724ced0051c10d088eab9ddc1123ce564702735a7dcb764eb8",
         )
+        HINDSIGHT_URL: str = os.environ.get("HINDSIGHT_URL", "http://localhost:8888")
+        HINDSIGHT_CONTROL_PLANE_URL: str = os.environ.get("HINDSIGHT_CONTROL_PLANE_URL", "http://localhost:9999")
+        HINDSIGHT_ENABLED: bool = os.environ.get("HINDSIGHT_ENABLED", "true").lower() in ("true", "1", "yes")
+        HINDSIGHT_TIMEOUT_SECONDS: float = float(os.environ.get("HINDSIGHT_TIMEOUT_SECONDS", "10.0"))
         OPENROUTER_API_KEY: str = os.environ.get("OPENROUTER_API_KEY", "")
         OPENROUTER_MODEL: str = os.environ.get("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
         KUBECONFIG_PATH: str = os.environ.get("KUBECONFIG_PATH", "")

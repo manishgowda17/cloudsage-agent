@@ -44,8 +44,50 @@ class PromptBuilder:
         events = investigation.get("events", {})
         deployments = investigation.get("deployments", {})
         network = investigation.get("network", {})
+        manifest_audit = investigation.get("manifest_audit")
+        source_info = investigation.get("source_info", {})
 
-        return f"""### Kubernetes Incident Evidence
+        # Format recalled memories if present
+        recalled_memories = investigation.get("recalled_memories", [])
+        memory_section = ""
+        if recalled_memories:
+            memory_section = "\n#### Historical Incident Memories & Verified Fixes (Retrieved from Hindsight)\n"
+            for idx, m in enumerate(recalled_memories, 1):
+                text = m.get("text") if isinstance(m, dict) else str(m)
+                tags = m.get("tags") if isinstance(m, dict) else []
+                memory_section += f"- [Historical Memory #{idx}] (Tags: {', '.join(tags) if tags else 'none'}):\n  {text}\n"
+            memory_section += (
+                "\nCRITICAL SRE INSTRUCTION: The historical memories above represent previously verified resolutions "
+                "to similar incidents in this environment. Use them as trusted lessons and prior context, "
+                "but ALWAYS validate the recommended fix against the current manifest and telemetry.\n"
+            )
+
+        # Specialized prompt for static Manifest, GitHub repo, or ZIP audits
+        if manifest_audit or source_info.get("type") in ("yaml", "github", "zip"):
+            return f"""### Kubernetes Manifest & GitOps Audit Evidence
+
+#### Source Information
+- Ingestion Mode: {source_info.get('type', 'manifest')}
+- Source Label: {source_info.get('url') or source_info.get('filename') or (manifest_audit.get('source_label') if manifest_audit else 'manifest.yaml')}
+- Scanned Files: {json.dumps(source_info.get('files', []))}
+- Total Resources: {manifest_audit.get('total_resources', 0) if manifest_audit else 0}
+
+#### Detected Manifest Issues & Defects
+{json.dumps(events.get('detected_issues', []), indent=2)}
+
+#### Probe Omissions & Diagnostics
+{json.dumps(events.get('probe_events', []), indent=2)}
+
+#### Workload Deployments
+{json.dumps(deployments.get('problematic_deployments', []), indent=2)}
+
+#### Service Routing & Selectors
+{json.dumps(network.get('problematic_services', []), indent=2)}
+{memory_section}
+Analyze these Kubernetes manifest definitions. Identify the primary root cause defects (such as missing liveness/readiness probes, selector mismatches, or missing resource limits), explain their operational risk, and return actionable remediation advice and kubectl commands in the required JSON format.
+"""
+
+        prompt = f"""### Kubernetes Incident Evidence
 
 #### 1. Pods Telemetry
 - Total Pods: {pods.get('total_pods', 0)}
@@ -73,8 +115,22 @@ class PromptBuilder:
 
 #### 5. Network & Service Routing
 - Total Services: {network.get('total_services', 0)}
-- Routing / Endpoint Discrepancies:
+- Problematic Services:
 {json.dumps(network.get('problematic_services', []), indent=2)}
-
-Analyze this evidence, correlate the symptoms, and return your diagnosis in the required JSON format.
 """
+
+        if manifest_audit or source_info:
+            prompt += f"""
+#### 6. Manifest & Repository Audit
+- Ingestion Source: {source_info.get('type', 'manifest')} ({source_info.get('url') or source_info.get('filename') or (manifest_audit.get('source_label') if manifest_audit else '')})
+- Scanned Files: {json.dumps(source_info.get('files', []))}
+- Total Resources: {manifest_audit.get('total_resources', 0) if manifest_audit else 0}
+- Probe Issues:
+{json.dumps(events.get('probe_events', []), indent=2)}
+"""
+
+        if memory_section:
+            prompt += memory_section
+
+        prompt += "\nAnalyze this evidence, correlate the symptoms, and return your diagnosis in the required JSON format.\n"
+        return prompt

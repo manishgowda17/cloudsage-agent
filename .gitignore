@@ -1,33 +1,121 @@
-# Dependencies
-.venv/
-venv/
-node_modules/
-.pnp
-.pnp.js
-__pycache__/
-*.pyc
+# ==============================================================================
+# CLUSTERSAGE — Root Git Ignore
+# ==============================================================================
 
-# Environment files
+# --- Environment & Sensitive Credentials ---
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+secrets.yaml
+credentials.json
+service-account*.json
 
-# Production builds
+# Allow explicit example environment files
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# --- Python & Backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.nox/
+.tox/
+
+# --- Node.js & Next.js Frontend ---
+node_modules/
+.pnp
+.pnp.js
 .next/
 out/
-build/
-dist/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts.bak
 
-# Logs
+# --- Logs & Runtime Artifacts ---
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# OS and Editor
+# --- Terraform & Cloud State ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# --- Docker & Kubernetes ---
+.kube/cache/
+.kube/http-cache/
+kubeconfig.local
+kubeconfig-*.yaml
+docker-compose.override.yml
+*.sock
+
+# --- Hindsight Local Storage & Databases ---
+pg0/
+*.db
+*.sqlite
+*.sqlite3
+hindsight-data/
+.hindsight/
+
+# --- IDE & Operating System ---
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-.vscode/
+[Dd]esktop.ini
 .idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~

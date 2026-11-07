@@ -1,4 +1,26 @@
 services:
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    container_name: ai-kubernetes-agent-hindsight
+    restart: unless-stopped
+    shm_size: 1gb
+    ports:
+      - "8888:8888"
+      - "9999:9999"
+    environment:
+      - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER:-mock}
+      - HINDSIGHT_API_LLM_API_KEY=${GEMINI_API_KEY:-}
+      - HINDSIGHT_API_LLM_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - HINDSIGHT_API_WORKER_ID=ai-kubernetes-agent-hindsight
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8888/health', timeout=4).getcode() == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
   backend:
     build:
       context: ./backend
@@ -13,8 +35,13 @@ services:
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - KUBECONFIG_PATH=${KUBECONFIG_PATH:-}
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+      - HINDSIGHT_URL=http://hindsight:8888
+      - HINDSIGHT_CONTROL_PLANE_URL=http://localhost:9999
     volumes:
       - ~/.kube:/root/.kube:ro
+    depends_on:
+      hindsight:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -32,9 +59,13 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      - NEXT_PUBLIC_HINDSIGHT_CONTROL_PLANE=http://localhost:9999
       - NEXT_PUBLIC_INSFORGE_URL=${NEXT_PUBLIC_INSFORGE_URL:-https://mucsd7yw.us-east.insforge.app}
       - NEXT_PUBLIC_INSFORGE_ANON_KEY=${NEXT_PUBLIC_INSFORGE_ANON_KEY:-anon_57cbe317689f3e724ced0051c10d088eab9ddc1123ce564702735a7dcb764eb8}
     depends_on:
       backend:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  hindsight-data:

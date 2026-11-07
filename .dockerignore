@@ -1,0 +1,51 @@
+# ==============================================================================
+# CLUSTERSAGE — Root Docker Ignore
+# ==============================================================================
+
+# Version Control
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+
+# Node.js
+**/node_modules/
+**/.next/
+**/out/
+**/.turbo/
+**/*.log
+
+# Docs, Scenarios & Prompts not needed in production images
+docs/
+prompts/
+hindsight/
+scripts/
+
+# Terraform & Cloud
+**/.terraform/
+**/*.tfstate
+**/*.tfplan
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

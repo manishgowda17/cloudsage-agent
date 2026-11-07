@@ -20,23 +20,23 @@ export const InvestigationProgress: React.FC<InvestigationProgressProps> = ({
   const completedCount = steps.filter((s) => s.status === "completed").length;
 
   return (
-    <div className="bg-white/85 backdrop-blur-xl border border-blue-200/80 rounded-2xl p-5 mb-6 shadow-luminous transition-all">
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-          <Activity className="w-4 h-4 text-blue-600 animate-pulse" />
-          Live Investigation Telemetry Pipeline
+    <div className="relative bg-white/80 backdrop-blur-2xl border border-sky-100/90 rounded-3xl p-6 sm:p-7 mb-7 shadow-[0_20px_50px_-15px_rgba(30,58,138,0.08)] overflow-hidden transition-all duration-300">
+      <div className="flex items-center justify-between mb-4 pb-3.5 border-b border-slate-100">
+        <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-blue-700 animate-pulse" />
+          Live Diagnostic Pipeline
           {isActive && (
-            <span className="text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-full animate-pulse">
-              Active Triage
+            <span className="text-[10px] font-bold bg-sky-100 text-blue-800 border border-sky-200 px-2 py-0.5 rounded-full animate-pulse">
+              Active Stream
             </span>
           )}
         </h3>
-        <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+        <span className="text-xs font-bold text-slate-600 bg-sky-50 border border-sky-100 px-3 py-1 rounded-full">
           {completedCount} of {steps.length} Phases Complete
         </span>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {steps.map((step) => {
           const isCompleted = step.status === "completed";
           const isInProgress = step.status === "in_progress";
@@ -44,18 +44,18 @@ export const InvestigationProgress: React.FC<InvestigationProgressProps> = ({
           return (
             <div
               key={step.id}
-              className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs transition-all ${
+              className={`flex items-center gap-2.5 p-3 rounded-2xl border text-xs transition-all ${
                 isCompleted
-                  ? "bg-emerald-50/80 border-emerald-200 text-emerald-900 shadow-xs"
+                  ? "bg-emerald-50/80 border-emerald-200/90 text-emerald-950 shadow-2xs"
                   : isInProgress
-                  ? "bg-blue-50 border-blue-300 text-blue-900 shadow-sm ring-2 ring-blue-500/20"
-                  : "bg-slate-50/60 border-slate-200/70 text-slate-400"
+                  ? "bg-gradient-to-r from-blue-50 to-sky-50 border-blue-400 text-blue-950 shadow-md ring-2 ring-blue-500/20 scale-[1.02]"
+                  : "bg-slate-50/70 border-slate-200/70 text-slate-400"
               }`}
             >
               {isCompleted ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               ) : isInProgress ? (
-                <Loader2 className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+                <Loader2 className="w-4 h-4 text-blue-700 animate-spin shrink-0" />
               ) : (
                 <Circle className="w-4 h-4 text-slate-300 shrink-0" />
               )}

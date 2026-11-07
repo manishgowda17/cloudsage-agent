@@ -86,3 +86,15 @@ async def get_current_user(
             detail="Authentication failed.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Optional[Dict[str, Any]]:
+    """Validate incoming token if provided; returns None if omitted or invalid."""
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        return await get_current_user(credentials)
+    except Exception:
+        return None

@@ -1,199 +1,262 @@
-# AI Kubernetes Troubleshooting Agent
+# CLUSTERSAGE
 
-> An on-demand AI-powered Kubernetes troubleshooting platform that investigates cluster health, discovers local kubeconfig clusters, correlates multi-layer evidence (Pods, Logs, Events, Deployments, Networking), and generates Senior SRE root-cause diagnoses with exact `kubectl` remediation commands.
+> **Intelligence for the Unstoppable Cluster.**
+
+CLUSTERSAGE is an AI-powered Kubernetes operations intelligence platform designed to investigate infrastructure issues, identify root causes, recommend evidence-based remediation, and learn from previous incidents through persistent operational memory.
 
 ---
 
-## Architecture Overview
+## 1. Key Capabilities
 
-```text
-Frontend (Next.js Dashboard + InsForge Auth/DB)
-    ↓
-FastAPI Backend (Orchestrator)
-    ↓
-Cluster Manager (Local Kubeconfig Discovery: ~/.kube/config)
-    ↓
-Kubernetes Investigation Layer
-    ├── Pod Inspector (CrashLoopBackOff, ImagePullBackOff, OOMKilled, Pending)
-    ├── Logs Collector (Targeted failure regex and crash logs)
-    ├── Events Analyzer (Warning events, FailedScheduling, Unhealthy)
-    ├── Deployment Inspector (Replica availability, Rollout deadlocks)
-    └── Network Inspector (Service selectors, Endpoint alignment)
-    ↓
-AI Kubernetes Agent (Senior Kubernetes SRE Reasoning)
-    ↓
-LLM Reasoning (OpenRouter via InsForge Model Gateway Key)
-    ↓
-Root Cause Analysis + Suggested Fix + kubectl Command
-    ↓
-Frontend Diagnosis & InsForge Investigation History
+- **Intelligent Multi-Source Investigation**:
+  - **Live Kubernetes Clusters**: Automated inspection of Pods, container crash logs, warning events, Deployment rollout deadlocks, and Service routing selectors via local kubeconfig or in-cluster ServiceAccounts.
+  - **GitOps & GitHub Repositories**: Remote clone and automated static audit of Kubernetes manifests and Helm chart repositories.
+  - **ZIP Archive Manifest Ingestion**: Drag-and-drop analysis of compressed multi-service manifest bundles.
+  - **Raw YAML & Helm Go Templates**: Real-time syntax, API version deprecation, and probe audit with native Helm Go template placeholder (`{{ .Values... }}`) preprocessing.
+- **Universal Investigation Reporting**:
+  - Consistent executive summaries, overall health assessment badges, categorized issue explorers, and schema-validated fix diffs.
+- **Evidence-Based Remediation**:
+  - Generates copyable, dry-run validated `kubectl` commands and GitOps manifest patch diffs with blast radius evaluation.
+- **Persistent Hindsight Episodic Memory**:
+  - **Retain**: Permanently preserves verified incident resolutions and engineering lessons in isolated multi-tenant memory banks.
+  - **Recall**: Semantic vector search and temporal BM25 scoring with `hs-rerank-1` cross-encoder reranking to surface historical incidents during active triage.
+  - **Reflect**: Synthesizes recurring failure patterns and defect trends across microservices.
+- **Interactive SRE Runbook Catalog & Post-Mortems**:
+  - Standardized step-by-step resolution playbooks and post-mortem creation directly linked to Hindsight memory.
+- **Streamlined Enterprise Settings**:
+  - Minimal, high-impact operator preferences: Profile, Account & Security, Notifications, Hindsight Memory, and Data & Privacy.
+
+---
+
+## 2. Architecture
+
+```mermaid
+graph TD
+    User([Platform / SRE Operator]) -->|HTTPS / Browser| FE[Next.js 14 Web Console]
+    
+    subgraph "CLUSTERSAGE Core Platform"
+        FE -->|REST API| BE[FastAPI Backend Orchestrator]
+        BE -->|Ephemeral Manifest Ingestion| Ingest[Manifest Inspector & Normalizer]
+        BE -->|Telemetry & Context| AI[SRE Reasoning Engine / Gemini 2.5]
+        BE -->|Cognitive Operations| HS[Hindsight Episodic Memory Engine]
+    end
+
+    subgraph "External & Infrastructure Integrations"
+        BE -->|Kubeconfig / In-Cluster| K8S[Kubernetes Cluster API]
+        BE -->|Git Clone / HTTPS| GH[GitHub GitOps Repositories]
+        BE -->|JWT Auth & DB| IF[InsForge Cloud BaaS]
+    end
+
+    subgraph "Storage & Memory Persistence"
+        HS -->|Vector & Graph Data| Vol[(hindsight-data Volume)]
+    end
 ```
 
 ---
 
-## Monorepo Structure
+## 3. Technology Stack
+
+| Domain | Technology | Purpose | Location |
+|---|---|---|---|
+| **Frontend Framework** | **Next.js 14 (App Router)** | High-performance interactive operator dashboard | `frontend/` |
+| **Language (UI)** | **TypeScript / React 18** | Strict typed interfaces and component architecture | `frontend/src/` |
+| **Styling & Motion** | **Tailwind CSS & Framer Motion** | Dark obsidian UI with 60fps kinetic transitions | `frontend/src/app/globals.css` |
+| **Backend Framework** | **FastAPI (Python 3.12)** | Asynchronous REST API orchestrator & data normalizer | `backend/app/main.py` |
+| **AI Reasoning** | **Google Gemini 2.5 Flash** | Multimodal correlation of telemetry & root cause analysis | `backend/app/ai/` |
+| **Episodic Memory** | **Hindsight Memory Engine** | Multi-tenant episodic banking (Retain, Recall, Reflect) | `hindsight/` |
+| **Reranker** | **hindsight-ai/hs-rerank-1** | Cross-encoder semantic reranking of past incidents | `hindsight/` |
+| **Authentication & DB** | **InsForge BaaS (Postgres)** | JWT OAuth verification & incident history persistence | `frontend/src/services/insforge.ts` |
+| **Kubernetes Client** | **Official Kubernetes Python Client** | Cluster discovery, pod logs, events, and API audit | `backend/app/kubernetes/` |
+| **Containerization** | **Docker & Docker Compose** | Multi-stage production container orchestration | `docker-compose.yml` |
+
+---
+
+## 4. Repository Structure
 
 ```text
-ai-kubernetes-agent/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   └── v1/
-│   │   │       ├── endpoints/
-│   │   │       │   ├── investigate.py
-│   │   │       │   └── clusters.py
-│   │   │       └── router.py
-│   │   ├── core/
-│   │   │   ├── config.py
-│   │   │   └── logging.py
-│   │   ├── kubernetes/
-│   │   │   ├── kubectl_executor.py       # Safe subprocess executor with timeout
-│   │   │   ├── cluster_manager.py        # Kubeconfig discovery & context ping
-│   │   │   ├── pod_inspector.py          # Pod lifecycle & unhealthy states
-│   │   │   ├── logs_collector.py         # Concise crash & error pattern extraction
-│   │   │   ├── events_analyzer.py        # Warning events & incident signals
-│   │   │   ├── deployment_inspector.py   # Replicas & rollout stall detection
-│   │   │   └── network_inspector.py      # Service selectors & missing endpoints
-│   │   ├── ai/
-│   │   │   ├── prompt_builder.py         # Multi-layer Kubernetes evidence prompt
-│   │   │   ├── llm_client.py             # OpenRouter client via InsForge key
-│   │   │   ├── confidence_engine.py      # Telemetry strength confidence scoring
-│   │   │   ├── fix_engine.py             # Targeted remediation & kubectl commands
-│   │   │   └── root_cause_analyzer.py    # SRE correlation & heuristic engine
-│   │   ├── services/
-│   │   │   └── investigation.py          # Evidence pipeline + scenario runner
-│   │   ├── models/
-│   │   │   └── schemas.py
-│   │   └── main.py                       # FastAPI application entrypoint
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx                  # Protected SRE Dashboard
-│   │   │   ├── providers.tsx
-│   │   │   └── globals.css
-│   │   ├── components/
-│   │   │   ├── Header.tsx                # Status banner & live health indicator
-│   │   │   ├── AuthModal.tsx             # InsForge Email/Password authentication
-│   │   │   ├── ClusterSelector.tsx       # Discovered kubeconfig clusters & test bench
-│   │   │   ├── InvestigationProgress.tsx # Live checklist (Pods → Logs → AI → Fix)
-│   │   │   ├── RootCauseCard.tsx         # Root cause, confidence, copyable kubectl command
-│   │   │   └── InvestigationHistory.tsx  # InsForge database past incident table
-│   │   ├── services/
-│   │   │   ├── api.ts
-│   │   │   ├── investigationService.ts   # Axios API client to FastAPI
-│   │   │   └── insforge.ts               # InsForge Auth, Database & Realtime client
-│   │   └── types/
-│   │       └── index.ts
-│   ├── Dockerfile
-│   ├── package.json
-│   └── .env.local
-├── scenarios/                            # Real Kubernetes Failure Manifests
-│   ├── 01-crashloop-backoff.yaml         # Missing DATABASE_URL env var
-│   ├── 02-imagepull-backoff.yaml         # Invalid image tag
-│   ├── 03-oomkilled.yaml                 # Exceeding 16Mi memory limit (Exit 137)
-│   └── 04-service-selector-mismatch.yaml # Service selector mismatch
-├── scripts/
-│   └── test_scenarios.py                 # Automated end-to-end scenario test suite
-├── prompts/
-│   ├── 01-prompt-project-setup.md
-│   ├── 02-prompt-kubernetes-investigation-engine.md
-│   ├── 03-prompt-ai-reasoning-engine.md
-│   ├── 04-prompt-dashboard-and-api.md
-│   └── 05-prompt-integration-testing-deployment.md
-├── docker-compose.yml
-└── README.md
+CLUSTERSAGE/
+├── frontend/                     # Next.js 14 Web Dashboard
+│   ├── src/                      # App router, components, services, and types
+│   ├── public/                   # Static assets
+│   ├── Dockerfile                # Multi-stage optimized Node 20 build
+│   └── package.json
+│
+├── backend/                      # FastAPI Python Application
+│   ├── app/                      # API routers, AI reasoning, K8s inspector, services
+│   ├── tests/                    # 27 Pytest integration tests (Hindsight, runbooks, reports)
+│   ├── Dockerfile                # Hardened Python 3.12 slim image with kubectl CLI
+│   └── requirements.txt
+│
+├── hindsight/                    # Hindsight Episodic Memory Engine
+│   ├── docker-compose.yml        # Standalone Hindsight deployment
+│   ├── config/                   # Memory engine parameters
+│   └── README.md                 # Hindsight memory deep-dive documentation
+│
+├── infrastructure/               # Infrastructure & Deployment Assets
+│   ├── docker/                   # Container topology & multi-stage build notes
+│   ├── kubernetes/               # RBAC policies & 5 failure triage scenarios
+│   └── deployment/               # High-availability production guidelines & NGINX config
+│
+├── docs/                         # Comprehensive Documentation
+│   ├── architecture.md           # System context, data flow, component breakdown
+│   ├── installation.md           # Step-by-step local & Docker installation guide
+│   ├── configuration.md          # Environment variable reference
+│   ├── deployment.md             # Production deployment & volume management
+│   ├── hindsight-integration.md  # Retain, Recall, and Reflect workflows
+│   ├── api-reference.md          # OpenAPI REST endpoint specifications
+│   ├── security.md               # Secret sanitization & token scrubbing policy
+│   └── troubleshooting.md        # Common diagnostics and fixes
+│
+├── scripts/                      # Developer & Operational Automation
+│   ├── setup.sh                  # Local environment initialization
+│   ├── start.sh                  # Automated multi-container startup
+│   ├── health-check.sh           # Endpoint verification script
+│   └── test_scenarios.py         # Automated scenario verification
+│
+├── .github/                      # CI/CD Workflows & Governance
+│   ├── workflows/                # GitHub Actions (CI & Security scanning)
+│   ├── ISSUE_TEMPLATE/           # Bug report & feature request templates
+│   ├── PULL_REQUEST_TEMPLATE.md  # Standardized pull request review template
+│   └── dependabot.yml            # Automated weekly dependency updates
+│
+├── .env.example                  # Environment configuration template
+├── .gitignore                    # Comprehensive repository exclusion rules
+├── .dockerignore                 # Root and service build context filters
+├── .editorconfig                 # Standardized editor indentation and line endings
+├── .gitattributes                # Git text normalization
+├── CONTRIBUTING.md               # Contributor guidelines and testing rules
+├── CODE_OF_CONDUCT.md            # Contributor Covenant v2.1
+├── SECURITY.md                   # Security vulnerability reporting & CVE policies
+├── CHANGELOG.md                  # Release history following Keep a Changelog standard
+├── Makefile                      # Cross-platform developer automation commands
+└── README.md                     # Project title, overview, and quickstart guide
 ```
 
 ---
 
-## Key Features
+## 5. Getting Started
 
-1. **Local Kubeconfig Cluster Discovery:**
-   - Automatically reads `~/.kube/config`.
-   - Renders all local clusters as clickable cards in the dashboard.
-   - **Clicking any cluster immediately switches context and triggers an investigation for that specific cluster.**
+### Prerequisites
+- Docker 24.0+ & Docker Compose v2.20+
+- Google Gemini API Key ([Get one free from Google AI Studio](https://aistudio.google.com/))
 
-2. **Real Kubernetes Failure Testing Bench:**
-   - Pre-packaged YAML manifests in `scenarios/` for testing:
-     - **Scenario 1 — CrashLoopBackOff:** Missing `DATABASE_URL` environment variable.
-     - **Scenario 2 — ImagePullBackOff:** Invalid container image tag (`nginx:nonexistent-tag-v999-invalid`).
-     - **Scenario 3 — OOMKilled:** Low memory limit allocation deadlock (Exit 137).
-     - **Scenario 4 — Service Selector Mismatch:** Service selector does not match pod labels.
-   - 1-click test pills in the web UI for immediate SRE diagnosis verification.
-
-3. **Beginner-Friendly Error Handling:**
-   - If the local Kubernetes control plane is stopped, the agent surfaces a structured checklist (verifying kubeconfig, daemon status, and cluster permissions) instead of cryptic stack traces.
-
-4. **InsForge Platform Integration:**
-   - **Authentication:** Protected SRE dashboard access.
-   - **PostgreSQL Database (`investigations` table):** Historical incident tracking with confidence score, root cause, and remediation commands.
-   - **Model Gateway (OpenRouter):** AI LLM reasoning using InsForge provisioned API keys.
-
----
-
-## Quick Start with Docker Compose
+### Quickstart (3 Commands)
 
 ```bash
-cd "C:\Users\Manish Gowda S N\.gemini\antigravity\scratch\ai-kubernetes-agent"
-docker compose up --build
+# 1. Clone the repository
+git clone https://github.com/ClusterSage/ClusterSage.git
+cd ClusterSage
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and supply your GEMINI_API_KEY=AIzaSy...
+
+# 3. Launch the container stack
+docker compose up -d --build
 ```
-- **Frontend Dashboard:** [http://localhost:3000](http://localhost:3000)
-- **Backend Health:** [http://localhost:8000/health](http://localhost:8000/health)
-- **Local Clusters API:** [http://localhost:8000/clusters](http://localhost:8000/clusters)
-- **Interactive OpenAPI Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Access Points
+- **Web Dashboard**: `http://localhost:3000`
+- **Backend API Docs**: `http://localhost:8000/docs`
+- **Memory Control Plane**: `http://localhost:9999`
 
 ---
 
-## Running Automated Scenario Tests
+## 6. Environment Configuration
 
-Run the full end-to-end integration and failure scenario test suite:
+All settings are configured via `.env` (derived from `.env.example`). Key configuration variables:
+
+```dotenv
+# Google Gemini Reasoning Engine (Server-Only)
+GEMINI_API_KEY=AIzaSy...your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
+
+# InsForge BaaS & Persistent Database
+INSFORGE_URL=https://mucsd7yw.us-east.insforge.app
+INSFORGE_ANON_KEY=anon_57cbe317689f3e724ced0051c10d088eab9ddc1123ce564702735a7dcb764eb8
+
+# Hindsight Episodic Memory Engine
+HINDSIGHT_URL=http://localhost:8888
+HINDSIGHT_CONTROL_PLANE_URL=http://localhost:9999
+HINDSIGHT_API_LLM_PROVIDER=gemini
+
+# Frontend Public Gateway
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+Refer to [`docs/configuration.md`](docs/configuration.md) for full parameter descriptions.
+
+---
+
+## 7. Hindsight Episodic Memory Workflows
+
+ClusterSage uses Hindsight to give SRE teams persistent episodic memory:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor SRE as Operator
+    participant App as ClusterSage Dashboard
+    participant BE as FastAPI Backend
+    participant HS as Hindsight Memory
+    participant AI as Gemini SRE Engine
+
+    SRE->>App: Trigger Investigation (e.g. CrashLoopBackOff)
+    App->>BE: POST /investigate
+    BE->>HS: Recall similar incident patterns (arecall)
+    HS-->>BE: Past verified incidents & effective fixes
+    BE->>AI: Synthesize root cause with past fixes injected
+    AI-->>BE: Root Cause Analysis & validated patch
+    BE-->>App: Universal Investigation Report
+    SRE->>App: Complete Post-Mortem
+    App->>BE: POST /api/v1/postmortems
+    BE->>HS: Retain verified fix for future incidents (aretain)
+```
+
+- **Retain**: Records verified post-mortem fixes and lessons learned into the user's isolated memory bank.
+- **Recall**: Retrieves matching historical incidents using hybrid semantic vector and BM25 scoring.
+- **Reflect**: Synthesizes recurring failure patterns across historical incidents.
+
+Refer to [`docs/hindsight-integration.md`](docs/hindsight-integration.md) for architectural details.
+
+---
+
+## 8. Testing & Quality Verification
+
+Run the full backend integration test suite:
 
 ```bash
-python scripts/test_scenarios.py
+cd backend
+pytest tests/ -v
+# Output: 27 passed in ~100s
 ```
 
-Output:
-```text
-=================================================================
-[*] Running AI Kubernetes Agent Integration & Scenario Tests
-=================================================================
+Run the frontend production build check:
 
-[Test 1/6] Verifying GET /health ...
-  [PASS] Service Health: {'status': 'healthy', 'service': 'ai-kubernetes-agent'}
-
-[Test 2/6] Verifying GET /clusters (Local Kubeconfig Discovery) ...
-  [PASS] Discovered 1 local cluster context(s):
-    - docker-desktop (docker-desktop) -> https://127.0.0.1:52285
-
-[Test 3/6] Testing Scenario 1: CrashLoopBackOff (Missing ENV) ...
-  [PASS] Root Cause: Missing environment variable: DATABASE_URL in pod 'payment-service-679bc489fb-xyz12'.
-  [PASS] Suggested Fix: Add the missing secret or configmap value for DATABASE_URL to the deployment environment.
-  [PASS] kubectl Command: kubectl set env deployment/payment-service-679bc489fb-xyz12 DATABASE_URL=postgresql://user:pass@postgres:5432/db -n default
-  [PASS] Confidence: 94%
-
-[Test 4/6] Testing Scenario 2: ImagePullBackOff (Bad Image Tag) ...
-  [PASS] Root Cause: Invalid container image tag or repository for pod 'auth-service-58df86455b-4rt5y'.
-  [PASS] Suggested Fix: Update the deployment image tag to a valid image existing in the registry.
-  [PASS] kubectl Command: kubectl set image deployment/auth-service-58df86455b-4rt5y auth-service-58df86455b-4rt5y=nginx:alpine -n default
-  [PASS] Confidence: 96%
-
-[Test 5/6] Testing Scenario 3: OOMKilled (Low Memory Limit) ...
-  [PASS] Root Cause: Container in pod 'analytics-worker-9988ffbc-qw78p' exceeded memory limit (OOMKilled - Exit 137).
-  [PASS] Suggested Fix: Increase memory requests and limits for the container in the deployment specification.
-  [PASS] kubectl Command: kubectl set resources deployment/analytics-worker-9988ffbc-qw78p --limits=memory=256Mi --requests=memory=128Mi -n default
-  [PASS] Confidence: 97%
-
-[Test 6/6] Testing Scenario 4: Service Selector Mismatch ...
-  [PASS] Root Cause: Service selector does not match pod labels for service 'order-service'.
-  [PASS] Suggested Fix: Update the service selector labels to match the target deployment pod template labels.
-  [PASS] kubectl Command: kubectl patch svc order-service -p '{"spec":{"selector":{"app":"orders-backend"}}}' -n default
-  [PASS] Confidence: 93%
-
-=================================================================
-[SUCCESS] ALL 6 INTEGRATION & SCENARIO TESTS PASSED SUCCESSFULLY!
-=================================================================
+```bash
+cd frontend
+npm run build
+# Output: Compiled successfully, 0 type errors
 ```
+
+---
+
+## 9. Security & Privacy
+
+- **Deterministic Regex Secrets Scrubber**: All AWS/GCP keys, Bearer tokens, and passwords are sanitized before transmission to AI models.
+- **Zero Third-Party Telemetry**: ClusterSage does not transmit cluster metrics to third-party ad networks.
+- **Multi-Tenant Isolation**: Memory banks are partitioned strictly by authenticated user ID.
+
+Refer to [`docs/security.md`](docs/security.md) for the complete security specification.
+
+---
+
+## 10. Contributing
+
+Contributions are welcome! Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for our pull request process, branching strategy, and code conventions. Please review [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) before participating.
+
+---
+
+## 11. License
+
+See the LICENSE section or project repository settings for licensing terms.

@@ -84,7 +84,7 @@ export const KineticTypography: React.FC<KineticTypographyProps> = ({
                   key={charIndex}
                   className={`kinetic-letter inline-block ${
                     interactive ? "cursor-default" : ""
-                  }`}
+                  } ${isHighlight ? "text-cyan-400 font-bold" : ""}`}
                   style={{
                     animationName: "letter-inflate",
                     animationDuration: `${durationMs}ms`,

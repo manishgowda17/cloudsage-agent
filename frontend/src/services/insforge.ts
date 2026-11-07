@@ -46,6 +46,69 @@ export const insforgeService = {
     return await insforge.auth.getCurrentUser();
   },
 
+  async verifyEmail(email: string, otp: string) {
+    try {
+      const res = await insforge.auth.verifyEmail({ email, otp });
+      if (res.data?.accessToken && typeof window !== "undefined") {
+        localStorage.setItem("insforge_access_token", res.data.accessToken);
+      }
+      if (!res.error && res.data) return res;
+      // Fallback try verifyOtp
+      const otpRes = await insforge.auth.verifyOtp({ email, otp });
+      if (otpRes.data?.accessToken && typeof window !== "undefined") {
+        localStorage.setItem("insforge_access_token", otpRes.data.accessToken);
+      }
+      return otpRes;
+    } catch (err: any) {
+      try {
+        const otpRes = await insforge.auth.verifyOtp({ email, otp });
+        if (otpRes.data?.accessToken && typeof window !== "undefined") {
+          localStorage.setItem("insforge_access_token", otpRes.data.accessToken);
+        }
+        return otpRes;
+      } catch {
+        return { data: null, error: err };
+      }
+    }
+  },
+
+  async resendVerificationEmail(email: string) {
+    try {
+      return await insforge.auth.resendVerificationEmail({ email });
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  },
+
+  async sendResetPasswordEmail(email: string) {
+    try {
+      return await insforge.auth.sendResetPasswordEmail({
+        email,
+        redirectTo: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+      });
+    } catch (err) {
+      return { data: null, error: err };
+    }
+  },
+
+  async signInWithGoogle() {
+    return await insforge.auth.signInWithOAuth("google", {
+      redirectTo: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+    });
+  },
+
+  async signInWithGitHub() {
+    return await insforge.auth.signInWithOAuth("github", {
+      redirectTo: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+    });
+  },
+
+  async signInWithLinkedIn() {
+    return await insforge.auth.signInWithOAuth("linkedin", {
+      redirectTo: typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+    });
+  },
+
   getAccessToken(): string | null {
     if (typeof window === "undefined") return null;
     try {

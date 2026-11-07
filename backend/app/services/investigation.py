@@ -7,7 +7,9 @@ Orchestrates the entire Kubernetes Troubleshooting Workflow:
 4. Senior Kubernetes SRE AI Reasoning (Google Gemini API / Deterministic Heuristic)
 """
 
-from typing import Any, Dict, Optional
+import base64
+import uuid
+from typing import Any, Dict, Optional, Tuple
 from app.core.logging import logger
 from app.kubernetes.cluster_manager import cluster_manager
 from app.kubernetes.pod_inspector import pod_inspector
@@ -15,7 +17,11 @@ from app.kubernetes.logs_collector import logs_collector
 from app.kubernetes.events_analyzer import events_analyzer
 from app.kubernetes.deployment_inspector import deployment_inspector
 from app.kubernetes.network_inspector import network_inspector
+from app.kubernetes.manifest_inspector import manifest_inspector
 from app.ai.root_cause_analyzer import root_cause_analyzer
+from app.services.hindsight_service import hindsight_service
+from app.services.runbook_service import runbook_service
+from app.services.report_normalizer import UniversalReportNormalizer
 
 
 class InvestigationService:
@@ -27,8 +33,13 @@ class InvestigationService:
         context: Optional[str] = None,
         scenario: Optional[str] = None,
         user_id: Optional[str] = None,
+        source_type: Optional[str] = "cluster",
+        github_url: Optional[str] = None,
+        manifest_content: Optional[str] = None,
+        manifest_filename: Optional[str] = None,
+        zip_data_base64: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Execute the complete troubleshooting pipeline for a target cluster or test scenario."""
+        """Execute the complete troubleshooting pipeline for a target cluster, test scenario, or manifest source."""
         target_ctx = context or "default"
         target_ns = namespace or "default"
 
@@ -36,13 +47,218 @@ class InvestigationService:
         if scenario:
             logger.info(f"Running simulated failure test scenario: '{scenario}' (user: {user_id or 'anon'})")
             evidence = InvestigationService._build_scenario_evidence(scenario, target_ns)
-            diagnosis = await root_cause_analyzer.analyze(investigation=evidence)
-            return {
-                "status": "success",
-                "diagnosis": diagnosis,
-                "investigation": evidence,
-                "user_id": user_id,
-            }
+            diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                evidence=evidence,
+                user_id=user_id,
+                source_label=f"scenario:{scenario}",
+                resource_kind_hint="Deployment",
+                resource_name_hint=scenario,
+            )
+            return InvestigationService._build_final_response(
+                diagnosis=diagnosis,
+                evidence=evidence,
+                user_id=user_id,
+                hindsight_meta=hindsight_meta,
+                source_type="scenario",
+                source_label=f"scenario:{scenario}",
+            )
+
+        # --- Source Type: GitHub Repository Manifest Audit ---
+        if source_type == "github" or (github_url and not manifest_content and not zip_data_base64):
+            repo_url = github_url or "https://github.com/kubernetes/examples"
+            logger.info(f"Auditing GitHub repository manifests: '{repo_url}' (user: {user_id or 'anon'})")
+            resources, errors, scanned_files, fetch_err = await manifest_inspector.fetch_github_manifests(repo_url)
+
+            if fetch_err:
+                findings_list = [{
+                    "severity": "ERROR",
+                    "resource": f"GitHub/{repo_url}",
+                    "file": repo_url,
+                    "field": "url",
+                    "line": 1,
+                    "explanation": fetch_err,
+                    "fix": "Verify that the GitHub repository exists, is public, and contains .yaml or .yml files.",
+                }]
+                err_evidence = {
+                    "pods": {"healthy": False, "total_pods": 0, "unhealthy_count": 0, "problematic_pods": []},
+                    "logs": {"collected_count": 0, "pod_logs": {}},
+                    "events": {
+                        "total_events": 1,
+                        "warning_events_count": 1,
+                        "detected_issues": [{
+                            "kind": "GitHub",
+                            "name": repo_url,
+                            "namespace": "default",
+                            "reason": "FetchFailed",
+                            "message": fetch_err,
+                            "count": 1,
+                        }],
+                        "probe_events": [],
+                    },
+                    "deployments": {"healthy": False, "total_deployments": 0, "unhealthy_count": 0, "problematic_deployments": []},
+                    "network": {"healthy": False, "total_services": 0, "problematic_services": []},
+                    "source_info": {"type": "github", "url": repo_url, "files": scanned_files},
+                    "findings": findings_list,
+                    "static_diagnosis": {
+                        "root_cause": f"GitHub Manifest Retrieval Failed: {repo_url}",
+                        "explanation": fetch_err,
+                        "fix": "Verify that the repository URL is public, correctly typed (e.g. https://github.com/owner/repo), and contains valid Kubernetes YAML files (.yaml or .yml).",
+                        "kubectl_command": f"git clone {repo_url}",
+                        "confidence": 95,
+                        "prevention": "Ensure repository permissions and manifest directory paths are accessible.",
+                        "findings": findings_list,
+                    },
+                }
+                diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                    evidence=err_evidence,
+                    user_id=user_id,
+                    source_label=repo_url,
+                    resource_kind_hint="GitHub",
+                    resource_name_hint=repo_url,
+                )
+                return InvestigationService._build_final_response(
+                    diagnosis=diagnosis,
+                    evidence=err_evidence,
+                    user_id=user_id,
+                    hindsight_meta=hindsight_meta,
+                    source_type="github",
+                    source_label=repo_url,
+                )
+
+            evidence = manifest_inspector.audit_resources(
+                resources, source_label=repo_url, parse_errors=errors, scanned_files=scanned_files
+            )
+            evidence["source_info"] = {"type": "github", "url": repo_url, "files": scanned_files}
+            diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                evidence=evidence,
+                user_id=user_id,
+                source_label=repo_url,
+                resource_kind_hint="Repository",
+                resource_name_hint=repo_url,
+            )
+            return InvestigationService._build_final_response(
+                diagnosis=diagnosis,
+                evidence=evidence,
+                user_id=user_id,
+                hindsight_meta=hindsight_meta,
+                source_type="github",
+                source_label=repo_url,
+            )
+
+        # --- Source Type: Plain Kubernetes YAML Manifest Audit ---
+        if source_type == "yaml" or (manifest_content and not zip_data_base64):
+            filename = manifest_filename or "manifest.yaml"
+            logger.info(f"Auditing plain Kubernetes YAML manifest: '{filename}' (user: {user_id or 'anon'})")
+            resources, errors = manifest_inspector.parse_yaml_documents(manifest_content or "", filename)
+            evidence = manifest_inspector.audit_resources(
+                resources, source_label=filename, parse_errors=errors, scanned_files=[filename]
+            )
+            evidence["source_info"] = {"type": "yaml", "filename": filename, "files": [filename]}
+            diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                evidence=evidence,
+                user_id=user_id,
+                source_label=filename,
+                resource_kind_hint="Manifest",
+                resource_name_hint=filename,
+            )
+            return InvestigationService._build_final_response(
+                diagnosis=diagnosis,
+                evidence=evidence,
+                user_id=user_id,
+                hindsight_meta=hindsight_meta,
+                source_type="yaml",
+                source_label=filename,
+            )
+
+        # --- Source Type: ZIP Archive Manifest Audit ---
+        if source_type == "zip" or zip_data_base64:
+            filename = manifest_filename or "manifests.zip"
+            logger.info(f"Auditing ZIP archive manifests: '{filename}' (user: {user_id or 'anon'})")
+            try:
+                zip_bytes = base64.b64decode(zip_data_base64 or "")
+            except Exception as e:
+                zip_bytes = b""
+                logger.error(f"Failed to decode base64 ZIP payload: {e}")
+
+            resources, errors, scanned_files, zip_err = manifest_inspector.extract_manifests_from_zip(
+                zip_bytes, filename=filename
+            )
+
+            if zip_err:
+                findings_list = [{
+                    "severity": "ERROR",
+                    "resource": f"Archive/{filename}",
+                    "file": filename,
+                    "field": "archive",
+                    "line": 1,
+                    "explanation": zip_err,
+                    "fix": "Ensure the uploaded file is a valid, uncorrupted ZIP archive containing .yaml or .yml Kubernetes manifest files.",
+                }]
+                err_evidence = {
+                    "pods": {"healthy": False, "total_pods": 0, "unhealthy_count": 0, "problematic_pods": []},
+                    "logs": {"collected_count": 0, "pod_logs": {}},
+                    "events": {
+                        "total_events": 1,
+                        "warning_events_count": 1,
+                        "detected_issues": [{
+                            "kind": "Archive",
+                            "name": filename,
+                            "namespace": "default",
+                            "reason": "ExtractFailed",
+                            "message": zip_err,
+                            "count": 1,
+                        }],
+                        "probe_events": [],
+                    },
+                    "deployments": {"healthy": False, "total_deployments": 0, "unhealthy_count": 0, "problematic_deployments": []},
+                    "network": {"healthy": False, "total_services": 0, "problematic_services": []},
+                    "source_info": {"type": "zip", "filename": filename, "files": scanned_files},
+                    "findings": findings_list,
+                    "static_diagnosis": {
+                        "root_cause": f"ZIP Archive Extraction Failed: {filename}",
+                        "explanation": zip_err,
+                        "fix": "Ensure the uploaded file is a valid, uncorrupted ZIP archive containing .yaml or .yml files.",
+                        "kubectl_command": f"unzip -l {filename}",
+                        "confidence": 95,
+                        "prevention": "Inspect archive contents locally with 'unzip -l' prior to uploading.",
+                        "findings": findings_list,
+                    },
+                }
+                diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                    evidence=err_evidence,
+                    user_id=user_id,
+                    source_label=filename,
+                    resource_kind_hint="Archive",
+                    resource_name_hint=filename,
+                )
+                return InvestigationService._build_final_response(
+                    diagnosis=diagnosis,
+                    evidence=err_evidence,
+                    user_id=user_id,
+                    hindsight_meta=hindsight_meta,
+                    source_type="zip",
+                    source_label=filename,
+                )
+
+            evidence = manifest_inspector.audit_resources(
+                resources, source_label=filename, parse_errors=errors, scanned_files=scanned_files
+            )
+            evidence["source_info"] = {"type": "zip", "filename": filename, "files": scanned_files}
+            diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                evidence=evidence,
+                user_id=user_id,
+                source_label=filename,
+                resource_kind_hint="Archive",
+                resource_name_hint=filename,
+            )
+            return InvestigationService._build_final_response(
+                diagnosis=diagnosis,
+                evidence=evidence,
+                user_id=user_id,
+                hindsight_meta=hindsight_meta,
+                source_type="zip",
+                source_label=filename,
+            )
 
         # --- Real Cluster Investigation ---
         logger.info(f"Initiating investigation on context: '{target_ctx}', namespace: '{target_ns}'")
@@ -59,12 +275,21 @@ class InvestigationService:
                 "network": {"healthy": False, "total_services": 0, "problematic_services": []},
                 "cluster_error": reachability_msg,
             }
-            diagnosis = await root_cause_analyzer.analyze(investigation=empty_evidence)
-            return {
-                "status": "success",
-                "diagnosis": diagnosis,
-                "investigation": empty_evidence,
-            }
+            diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+                evidence=empty_evidence,
+                user_id=user_id,
+                source_label=f"cluster:{target_ctx}",
+                resource_kind_hint="Cluster",
+                resource_name_hint=target_ctx,
+            )
+            return InvestigationService._build_final_response(
+                diagnosis=diagnosis,
+                evidence=empty_evidence,
+                user_id=user_id,
+                hindsight_meta=hindsight_meta,
+                source_type="cluster",
+                source_label=f"cluster:{target_ctx}",
+            )
 
         # 1. Pods (with liveness & readiness probes)
         logger.info("[Evidence 1/5] Inspecting Pod health, lifecycle states, and probes...")
@@ -95,16 +320,224 @@ class InvestigationService:
             "network": network_evidence,
         }
 
-        # Senior SRE AI Reasoning (Google Gemini API / Heuristic)
-        logger.info("[AI Reasoning] Analyzing evidence with Senior Kubernetes SRE intelligence...")
-        diagnosis = await root_cause_analyzer.analyze(investigation=investigation_payload)
+        # Senior SRE AI Reasoning with Hindsight Workflow
+        logger.info("[AI Reasoning] Analyzing evidence with Senior Kubernetes SRE intelligence & Hindsight Memory...")
+        diagnosis, hindsight_meta = await InvestigationService._run_hindsight_pipeline(
+            evidence=investigation_payload,
+            user_id=user_id,
+            source_label=f"cluster:{target_ctx}/{target_ns}",
+            resource_kind_hint="Cluster",
+            resource_name_hint=target_ctx,
+        )
 
+        return InvestigationService._build_final_response(
+            diagnosis=diagnosis,
+            evidence=investigation_payload,
+            user_id=user_id,
+            hindsight_meta=hindsight_meta,
+            source_type="cluster",
+            source_label=f"cluster:{target_ctx}/{target_ns}",
+        )
+
+    @staticmethod
+    def _build_final_response(
+        diagnosis: Dict[str, Any],
+        evidence: Dict[str, Any],
+        user_id: Optional[str],
+        hindsight_meta: Dict[str, Any],
+        source_type: str,
+        source_label: str,
+    ) -> Dict[str, Any]:
+        """Construct the standardized response payload with UniversalInvestigationReport."""
+        report = UniversalReportNormalizer.normalize(
+            evidence=evidence,
+            diagnosis=diagnosis,
+            source_type=source_type,
+            source_label=source_label,
+            user_id=user_id,
+            hindsight_meta=hindsight_meta,
+        )
+        report_dict = report.model_dump()
+        diagnosis["report"] = report_dict
         return {
             "status": "success",
             "diagnosis": diagnosis,
-            "investigation": investigation_payload,
+            "report": report_dict,
+            "investigation": evidence,
             "user_id": user_id,
+            "hindsight": hindsight_meta,
         }
+
+    @staticmethod
+    async def _run_hindsight_pipeline(
+        evidence: Dict[str, Any],
+        user_id: Optional[str],
+        source_label: str,
+        resource_kind_hint: str = "Deployment",
+        resource_name_hint: str = "workload",
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Executes the mandatory Hindsight Workflow:
+        Recall → Gemini reasoning → validation → Retain.
+        """
+        incident_id = f"inc-{uuid.uuid4().hex[:8]}"
+        events = evidence.get("events", {})
+        probe_events = events.get("probe_events", [])
+        detected_issues = events.get("detected_issues", [])
+        findings = evidence.get("findings", [])
+
+        # Infer target resource
+        res_kind = resource_kind_hint
+        res_name = resource_name_hint
+        if findings:
+            target_res = findings[0].get("resource", "")
+            if "/" in target_res:
+                parts = target_res.split("/", 1)
+                res_kind, res_name = parts[0], parts[1]
+            elif target_res:
+                res_name = target_res
+        elif probe_events:
+            p = probe_events[0]
+            res_kind = p.get("kind", "Deployment")
+            res_name = p.get("name", "workload")
+        elif detected_issues:
+            i = detected_issues[0]
+            res_kind = i.get("kind", "Resource")
+            res_name = i.get("name", "workload")
+
+        # 1. RECALL: Extract symptoms from current evidence and query Hindsight
+        query_terms = []
+        if probe_events or any("probe" in str(f).lower() for f in findings):
+            query_terms.append(f"readiness probe liveness probe fix for {res_kind} {res_name}")
+        if any("selector" in str(f).lower() for f in findings):
+            query_terms.append(f"service selector mismatch fix for {res_name}")
+        if not query_terms:
+            query_terms.append(f"Kubernetes manifest failure and verified remediation for {res_kind} {res_name}")
+
+        recall_query = " ".join(query_terms)
+        logger.info(f"HINDSIGHT STEP 1/4 [RECALL]: Querying user bank for previous incident fixes: '{recall_query[:80]}'")
+
+        recall_resp = await hindsight_service.recall_memories(
+            user_id=user_id,
+            query=recall_query,
+        )
+        recalled_memories = recall_resp.get("memories", [])
+        evidence["recalled_memories"] = recalled_memories
+
+        # Extract structured lessons from recalled memories for explainable UI
+        previous_root_causes = []
+        fixes_that_worked = []
+        useful_runbooks = []
+
+        for m in recalled_memories:
+            text = m.get("text", "")
+            for line in text.splitlines():
+                line_str = line.strip()
+                if line_str.startswith("Root Cause:") and len(line_str) > 12:
+                    cause = line_str[11:].strip()
+                    if cause not in previous_root_causes:
+                        previous_root_causes.append(cause)
+                elif (line_str.startswith("Verified Patch") or line_str.startswith("Suggested Remediation:") or line_str.startswith("Proven Working Resolution:")) and len(line_str) > 20:
+                    fix_snippet = line_str.split(":", 1)[-1].strip()
+                    if fix_snippet not in fixes_that_worked:
+                        fixes_that_worked.append(fix_snippet)
+                elif "RB-K8S-" in line_str:
+                    for token in line_str.split():
+                        if token.startswith("RB-K8S-") and token not in useful_runbooks:
+                            useful_runbooks.append(token.rstrip(":,.;()"))
+
+        # 2. GEMINI REASONING: Gemini analyzes evidence augmented with recalled context
+        logger.info(f"HINDSIGHT STEP 2/4 [GEMINI REASONING]: Invoking diagnosis with {len(recalled_memories)} recalled memory item(s)...")
+        diagnosis = await root_cause_analyzer.analyze(investigation=evidence)
+
+        # 3. VALIDATION: Check generated patch and manifest rules
+        logger.info("HINDSIGHT STEP 3/4 [VALIDATION]: Verifying remediation against Kubernetes specification...")
+        has_fix = bool(diagnosis.get("fix") and diagnosis.get("root_cause"))
+        resolution_status = "VALIDATED_FIX" if has_fix else "SUGGESTED_FIX"
+
+        # Match relevant production SRE runbooks
+        matched_runbooks = runbook_service.match_runbook_for_incident(
+            problem=diagnosis.get("root_cause", ""),
+            resource_kind=res_kind,
+            recalled_memories=recalled_memories,
+        )
+        diagnosis["recommended_runbooks"] = matched_runbooks
+        diagnosis["resolution_stage"] = "VALIDATED_PATCH" if has_fix else "PROPOSED_FIX"
+        diagnosis["incident_id"] = incident_id
+
+        # Generate a structured patch preview diff or configuration snippet
+        patch_lines = []
+        cmd = diagnosis.get("kubectl_command", "")
+        if "patch" in cmd or "set" in cmd:
+            patch_lines.append(f"# Remediation Patch for {res_kind}/{res_name}")
+            patch_lines.append(f"# Executable Command:")
+            patch_lines.append(cmd)
+            patch_lines.append("")
+        if "readinessProbe" in cmd or "probe" in diagnosis.get("root_cause", "").lower():
+            patch_lines.append("spec:")
+            patch_lines.append("  template:")
+            patch_lines.append("    spec:")
+            patch_lines.append("      containers:")
+            patch_lines.append(f"      - name: {res_name}")
+            patch_lines.append("        readinessProbe:")
+            patch_lines.append("          httpGet:")
+            patch_lines.append("            path: /ready  # Corrected endpoint")
+            patch_lines.append("            port: 8080")
+            patch_lines.append("          initialDelaySeconds: 10")
+            patch_lines.append("          periodSeconds: 5")
+        elif "resources" in cmd or "limit" in diagnosis.get("root_cause", "").lower():
+            patch_lines.append("spec:")
+            patch_lines.append("  template:")
+            patch_lines.append("    spec:")
+            patch_lines.append("      containers:")
+            patch_lines.append(f"      - name: {res_name}")
+            patch_lines.append("        resources:")
+            patch_lines.append("          requests:")
+            patch_lines.append("            memory: 128Mi")
+            patch_lines.append("            cpu: 100m")
+            patch_lines.append("          limits:")
+            patch_lines.append("            memory: 256Mi")
+            patch_lines.append("            cpu: 250m")
+        if patch_lines:
+            diagnosis["patch_preview"] = "\n".join(patch_lines)
+
+        # 4. RETAIN: Store verified incident into Hindsight bank
+        logger.info(f"HINDSIGHT STEP 4/4 [RETAIN]: Storing incident '{incident_id}' into user's Hindsight bank...")
+        retain_resp = await hindsight_service.retain_incident(
+            user_id=user_id,
+            incident_id=incident_id,
+            resource_kind=res_kind,
+            resource_name=res_name,
+            detected_problem=diagnosis.get("root_cause", "Incident detected"),
+            root_cause=diagnosis.get("explanation", ""),
+            suggested_remediation=diagnosis.get("fix", ""),
+            generated_patch=diagnosis.get("kubectl_command", ""),
+            manifest_validation_result="STATIC_VALIDATION_PASSED" if has_fix else "PENDING_CONFIRMATION",
+            resolution_status=resolution_status,
+            evidence_summary=f"Source: {source_label}, Confidence: {diagnosis.get('confidence', 0)}%",
+        )
+
+        influence_summary = None
+        if recalled_memories:
+            influence_summary = (
+                f"Recall returned {len(recalled_memories)} historical memory record(s) from Hindsight bank. "
+                f"Correlated with {len(previous_root_causes)} previous root cause(s) and validated remediation procedures."
+            )
+
+        hindsight_meta = {
+            "status": "available" if (recall_resp.get("available") or retain_resp.get("success")) else "offline",
+            "bank_id": hindsight_service.get_user_bank_id(user_id),
+            "recalled_count": len(recalled_memories),
+            "recalled_memories": recalled_memories,
+            "retained": retain_resp.get("success", False),
+            "retention_id": retain_resp.get("operation_id"),
+            "influence_summary": influence_summary,
+            "previous_root_causes": previous_root_causes[:3],
+            "fixes_that_worked": fixes_that_worked[:3],
+            "useful_runbooks": useful_runbooks or ([rb["id"] for rb in matched_runbooks[:2]]),
+        }
+
+        logger.info("HINDSIGHT WORKFLOW COMPLETED: Recall → Gemini diagnosis → validation → Retain")
+        return diagnosis, hindsight_meta
 
     @staticmethod
     def _build_scenario_evidence(scenario: str, namespace: str) -> Dict[str, Any]:

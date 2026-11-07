@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "AI Kubernetes Agent | SRE Troubleshooting Platform",
-  description: "On-demand AI-powered Kubernetes troubleshooting and root cause analysis platform.",
+  title: "ClusterSage | Autonomous Kubernetes SRE & Observability Platform",
+  description: "Next-generation autonomous Kubernetes troubleshooting, root cause analysis, and memory-grounded reliability platform.",
 };
 
 export default function RootLayout({
@@ -13,8 +13,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="light">
-      <body className="antialiased bg-[#fbfbfa] text-slate-800 min-h-screen selection:bg-blue-600/20 selection:text-blue-900">
+    <html lang="en" className="dark">
+      <body className="antialiased bg-[#070a11] text-slate-200 min-h-screen selection:bg-cyan-500/25 selection:text-cyan-200">
         <Providers>{children}</Providers>
       </body>
     </html>

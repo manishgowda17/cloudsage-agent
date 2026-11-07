@@ -99,6 +99,15 @@ class LLMClient:
                                 raw_text = parts[0].get("text", "")
                                 return self._parse_json_content(raw_text)
 
+                    # Fail fast on authentication/bad request errors without slow retries
+                    if response.status_code in (400, 401, 403):
+                        logger.warning(
+                            f"Google Gemini API returned HTTP {response.status_code} "
+                            f"(Authentication/API Key error): {response.text[:180]}. "
+                            "Aborting retries and falling back to Senior SRE Deterministic Correlation Engine."
+                        )
+                        return None
+
                     logger.warning(
                         f"Google Gemini API returned HTTP {response.status_code} "
                         f"(attempt {attempt}/{self.max_retries + 1}): {response.text[:200]}"

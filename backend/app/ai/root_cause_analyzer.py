@@ -24,6 +24,8 @@ class RootCauseAnalyzer:
         """Run root cause analysis on the collected investigation evidence."""
         logger.info("Executing Senior Kubernetes SRE Root Cause Analysis...")
 
+        static_diagnosis = investigation.get("static_diagnosis")
+
         # 1. Attempt LLM Reasoning via Google Gemini API
         if self.llm.is_configured:
             user_prompt = PromptBuilder.build_user_prompt(investigation)
@@ -34,11 +36,33 @@ class RootCauseAnalyzer:
 
             if llm_result and "root_cause" in llm_result:
                 logger.info("Successfully received diagnosis from Google Gemini LLM")
-                return self._sanitize_diagnosis(llm_result, investigation)
+                diagnosis = self._sanitize_diagnosis(llm_result, investigation)
+                if investigation.get("findings"):
+                    diagnosis["findings"] = investigation["findings"]
+                elif static_diagnosis and "findings" in static_diagnosis:
+                    diagnosis["findings"] = static_diagnosis["findings"]
+                return diagnosis
 
-        # 2. Fallback to Senior SRE Heuristic Engine
+        # 2. Use Static Diagnosis directly for YAML, GitHub, and ZIP audits
+        if static_diagnosis:
+            logger.info("Employing deterministic Senior SRE Static Manifest Diagnosis")
+            res_diag = dict(static_diagnosis)
+            recalled_memories = investigation.get("recalled_memories", [])
+            if recalled_memories and not res_diag.get("historical_context"):
+                res_diag["historical_context"] = "\n".join(
+                    [f"• {m.get('text', '')}" if isinstance(m, dict) else f"• {str(m)}" for m in recalled_memories[:3]]
+                )
+            return res_diag
+
+        # 3. Fallback to Senior SRE Heuristic Engine for cluster telemetry
         logger.info("Employing Senior SRE Deterministic Correlation Engine")
-        return self._heuristic_sre_analysis(investigation)
+        res_diag = self._heuristic_sre_analysis(investigation)
+        recalled_memories = investigation.get("recalled_memories", [])
+        if recalled_memories and not res_diag.get("historical_context"):
+            res_diag["historical_context"] = "\n".join(
+                [f"• {m.get('text', '')}" if isinstance(m, dict) else f"• {str(m)}" for m in recalled_memories[:3]]
+            )
+        return res_diag
 
     def _sanitize_diagnosis(
         self, llm_result: Dict[str, Any], investigation: Dict[str, Any]
@@ -50,7 +74,14 @@ class RootCauseAnalyzer:
         else:
             confidence = int(min(100, max(0, confidence)))
 
-        return {
+        recalled_memories = investigation.get("recalled_memories", [])
+        hist_context = None
+        if recalled_memories:
+            hist_context = "\n".join(
+                [f"• {m.get('text', '')}" if isinstance(m, dict) else f"• {str(m)}" for m in recalled_memories[:3]]
+            )
+
+        diagnosis = {
             "root_cause": str(llm_result.get("root_cause", "Anomaly detected in cluster")),
             "explanation": str(llm_result.get("explanation", "Failure detected during investigation")),
             "fix": str(llm_result.get("fix", "Inspect resource configuration")),
@@ -62,10 +93,17 @@ class RootCauseAnalyzer:
                 )
             ),
             "confidence": confidence,
+            "historical_context": hist_context,
         }
+        if investigation.get("findings"):
+            diagnosis["findings"] = investigation["findings"]
+        return diagnosis
 
     def _heuristic_sre_analysis(self, investigation: Dict[str, Any]) -> Dict[str, Any]:
         """Deterministic SRE correlation based on evidence patterns."""
+        if investigation.get("static_diagnosis"):
+            return investigation["static_diagnosis"]
+
         pods = investigation.get("pods", {})
         logs = investigation.get("logs", {})
         events = investigation.get("events", {})
@@ -73,7 +111,106 @@ class RootCauseAnalyzer:
         network = investigation.get("network", {})
         cluster_err = investigation.get("cluster_error")
 
-        # Case 1: Cluster Unreachable
+        # Case 1: Manifest / Repository / ZIP Audit (Evaluated first for static manifest inputs)
+        manifest_audit = investigation.get("manifest_audit")
+        source_info = investigation.get("source_info", {})
+        if manifest_audit or source_info.get("type") in ("yaml", "github", "zip"):
+            source_label = (
+                (manifest_audit.get("source_label") if manifest_audit else None)
+                or source_info.get("url")
+                or source_info.get("filename")
+                or "manifest.yaml"
+            )
+
+            # Check if source fetching failed (e.g., GitHub 404 or invalid ZIP)
+            if cluster_err:
+                return {
+                    "root_cause": f"Failed to ingest Kubernetes manifests from {source_label}.",
+                    "explanation": f"Source ingestion error: {cluster_err}. The specified repository or archive could not be parsed.",
+                    "fix": "Verify that the repository URL is public, accessible, and contains valid Kubernetes YAML files (.yaml or .yml).",
+                    "kubectl_command": f"curl -s {source_label[:80]} | kubectl apply -f - --dry-run=client",
+                    "prevention": "Ensure repositories have proper branch protection and keep manifests in standard /k8s or /deploy directories.",
+                    "confidence": 95,
+                }
+
+            probe_issues = events.get("probe_events", [])
+            detected_issues = events.get("detected_issues", [])
+
+            # Check probe configuration issues in manifest
+            if probe_issues:
+                first_probe = probe_issues[0]
+                reason = first_probe.get("reason", "ProbeMissing")
+                res_name = first_probe.get("name", "workload")
+                return {
+                    "root_cause": f"Probe configuration deficiency in '{res_name}' ({source_label}).",
+                    "explanation": first_probe.get("message", "Container workload is missing liveness or readiness probes."),
+                    "fix": (
+                        f"Add livenessProbe and readinessProbe to the container spec in {source_label}.\n"
+                        "Example:\n"
+                        "  livenessProbe:\n"
+                        "    httpGet:\n"
+                        "      path: /healthz\n"
+                        "      port: 8080\n"
+                        "    initialDelaySeconds: 15\n"
+                        "    periodSeconds: 10\n"
+                        "  readinessProbe:\n"
+                        "    httpGet:\n"
+                        "      path: /ready\n"
+                        "      port: 8080\n"
+                        "    initialDelaySeconds: 5\n"
+                        "    periodSeconds: 5"
+                    ),
+                    "kubectl_command": f"kubectl apply -f {source_label}",
+                    "prevention": "Enforce admission controllers (e.g., Kyverno or OPA Gatekeeper) requiring health probes on all production workloads.",
+                    "confidence": 96,
+                }
+
+            # Check selector mismatches and resource limits
+            if detected_issues:
+                first_issue = detected_issues[0]
+                reason = first_issue.get("reason", "ConfigurationError")
+                res_name = first_issue.get("name", "workload")
+                msg = first_issue.get("message", "Configuration defect detected in Kubernetes manifest.")
+
+                if "Selector" in reason or "Selector" in msg:
+                    return {
+                        "root_cause": f"Selector mismatch in '{res_name}' ({source_label}).",
+                        "explanation": msg,
+                        "fix": "Ensure 'spec.selector.matchLabels' matches 'spec.template.metadata.labels' exactly.",
+                        "kubectl_command": f"kubectl apply -f {source_label}",
+                        "prevention": "Use Kustomize or Helm to generate aligned labels automatically across deployments and services.",
+                        "confidence": 95,
+                    }
+                elif "Memory" in reason or "Limit" in msg:
+                    return {
+                        "root_cause": f"Missing memory limit in '{res_name}' ({source_label}).",
+                        "explanation": msg,
+                        "fix": "Specify 'resources.limits.memory' and 'resources.requests.memory' to prevent host OOM kills.",
+                        "kubectl_command": f"kubectl apply -f {source_label}",
+                        "prevention": "Define LimitRanges in your namespaces to automatically supply default memory and CPU limits.",
+                        "confidence": 94,
+                    }
+                else:
+                    return {
+                        "root_cause": f"Manifest defect in '{res_name}': {reason}.",
+                        "explanation": msg,
+                        "fix": f"Review and patch {source_label} to align with Kubernetes API standards.",
+                        "kubectl_command": f"kubectl apply -f {source_label}",
+                        "prevention": "Run 'kube-linter' or 'kubeconform' in CI/CD pipeline before applying manifests.",
+                        "confidence": 92,
+                    }
+
+            # All manifests compliant
+            return {
+                "root_cause": f"All Kubernetes manifests in '{source_label}' comply with production standards.",
+                "explanation": f"Inspected {manifest_audit.get('total_resources', 0) if manifest_audit else 0} resource(s). Probes, selectors, and resource limits are properly defined.",
+                "fix": "Manifests are verified and ready for deployment.",
+                "kubectl_command": f"kubectl apply -f {source_label} --dry-run=server",
+                "prevention": "Continuously scan repository commits with automated pre-commit hooks.",
+                "confidence": 98,
+            }
+
+        # Case 2: Live Cluster Control Plane Unreachable
         if cluster_err:
             return {
                 "root_cause": "Unable to connect to Kubernetes cluster.",

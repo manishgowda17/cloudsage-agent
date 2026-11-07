@@ -1,0 +1,37 @@
+# ==============================================================================
+# Hindsight Episodic Memory Engine — Standalone Docker Compose
+# ==============================================================================
+# Run Hindsight independently:
+#   docker compose -f hindsight/docker-compose.yml up -d
+#
+# Services exposed:
+#   - Port 8888: Hindsight REST API (retention, recall, reflect)
+#   - Port 9999: Hindsight Control Plane Web Dashboard
+# ==============================================================================
+
+services:
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    container_name: clustersage-hindsight-standalone
+    restart: unless-stopped
+    shm_size: 1gb
+    ports:
+      - "8888:8888"
+      - "9999:9999"
+    environment:
+      - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER:-mock}
+      - HINDSIGHT_API_LLM_API_KEY=${GEMINI_API_KEY:-}
+      - HINDSIGHT_API_LLM_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - HINDSIGHT_API_WORKER_ID=clustersage-hindsight-standalone
+    volumes:
+      - hindsight-standalone-data:/home/hindsight/.pg0
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8888/health', timeout=4).getcode() == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  hindsight-standalone-data:
+    driver: local
