@@ -17,17 +17,32 @@ import {
   ExternalLink,
   X,
   Radio,
+  Layers,
+  Server,
+  Cpu,
+  BarChart3,
+  Bell,
+  Wrench,
+  Lock,
 } from "lucide-react";
 
 export type WorkspaceTab =
   | "overview"
-  | "investigations"
-  | "history"
+  | "infrastructure"
+  | "clusters"
+  | "edge-agents"
+  | "fleet"
+  | "incidents"
   | "memory"
+  | "privacy"
+  | "alerts"
+  | "remediation"
+  | "settings"
   | "runbooks"
   | "postmortems"
-  | "insights"
-  | "settings";
+  | "investigations"
+  | "history"
+  | "insights";
 
 interface SidebarProps {
   activeTab: WorkspaceTab;
@@ -48,12 +63,15 @@ export function Sidebar({
 }: SidebarProps) {
   const navItems: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
     { id: "overview", label: "Overview", icon: <Compass className="w-4 h-4" /> },
-    { id: "investigations", label: "Investigations", icon: <Activity className="w-4 h-4" /> },
-    { id: "history", label: "Incident History", icon: <History className="w-4 h-4" /> },
-    { id: "memory", label: "Memory Bank", icon: <Brain className="w-4 h-4" /> },
-    { id: "runbooks", label: "SRE Runbooks", icon: <BookOpen className="w-4 h-4" /> },
-    { id: "postmortems", label: "Post-Mortems", icon: <FileText className="w-4 h-4" /> },
-    { id: "insights", label: "Reliability Insights", icon: <TrendingUp className="w-4 h-4" /> },
+    { id: "infrastructure", label: "Infrastructure", icon: <Layers className="w-4 h-4" /> },
+    { id: "clusters", label: "Cluster Management", icon: <Server className="w-4 h-4" /> },
+    { id: "edge-agents", label: "Edge Agents", icon: <Cpu className="w-4 h-4" /> },
+    { id: "fleet", label: "Fleet Analytics", icon: <BarChart3 className="w-4 h-4" /> },
+    { id: "incidents", label: "Incidents", icon: <Activity className="w-4 h-4" /> },
+    { id: "memory", label: "Memory Browser", icon: <Brain className="w-4 h-4" /> },
+    { id: "privacy", label: "Privacy & Data Policies", icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: "alerts", label: "Alerts & Recommendations", icon: <Bell className="w-4 h-4" /> },
+    { id: "remediation", label: "Remediation Center", icon: <Wrench className="w-4 h-4" /> },
     { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
   ];
 

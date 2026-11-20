@@ -28,28 +28,54 @@ CLUSTERSAGE is an AI-powered Kubernetes operations intelligence platform designe
 
 ---
 
-## 2. Architecture
+## 2. Distributed Two-Tier Architecture
+
+ClusterSage implements a **privacy-first distributed AIOps architecture** operating under the core principle:
+> **Sensitive data stays local. Intelligence operates at the edge. Approved metadata powers centralized fleet visibility. Automation remains controlled and auditable.**
 
 ```mermaid
-graph TD
-    User([Platform / SRE Operator]) -->|HTTPS / Browser| FE[Next.js 14 Web Console]
-    
-    subgraph "CLUSTERSAGE Core Platform"
-        FE -->|REST API| BE[FastAPI Backend Orchestrator]
-        BE -->|Ephemeral Manifest Ingestion| Ingest[Manifest Inspector & Normalizer]
-        BE -->|Telemetry & Context| AI[SRE Reasoning Engine / Gemini 2.5]
-        BE -->|Cognitive Operations| HS[Hindsight Episodic Memory Engine]
+graph TB
+    subgraph CustomerEnv["Tier 1 — Customer Infrastructure / Local Cluster"]
+        K8s["Kubernetes Nodes, Pods & Events"]
+        Prom["Prometheus Metrics / cAdvisor"]
+        
+        subgraph EdgeAgent["ClusterSage Edge Agent (edge-agent/)"]
+            Col["Collector Engine"]
+            Norm["Telemetry Normalizer & Deduplicator"]
+            Priv["Privacy Gateway (Redaction & Allowlist)"]
+            LocAn["Local Heuristic Defect Analyzer"]
+            OffQ[("Persistent Offline Queue (SQLite)")]
+            LocMem[("Local Hindsight Memory Engine")]
+            Exp["Secure HTTPS Exporter"]
+        end
     end
 
-    subgraph "External & Infrastructure Integrations"
-        BE -->|Kubeconfig / In-Cluster| K8S[Kubernetes Cluster API]
-        BE -->|Git Clone / HTTPS| GH[GitHub GitOps Repositories]
-        BE -->|JWT Auth & DB| IF[InsForge Cloud BaaS]
+    subgraph SaaSPlatform["Tier 2 — ClusterSage Cloud Platform (backend/)"]
+        Ingest["Metadata Ingestion API (/api/v1/agent)"]
+        TenantAuth["Server-Side Multi-Tenant Isolation & RLS"]
+        FleetEng["Fleet Analytics & Correlation Engine"]
+        RemediationHub["Human-in-the-Loop Remediation Hub"]
+        InsForgeAuth["InsForge Identity & Access Service"]
     end
 
-    subgraph "Storage & Memory Persistence"
-        HS -->|Vector & Graph Data| Vol[(hindsight-data Volume)]
+    subgraph OperatorConsole["Next.js 14 Web Console (11 Unified Modules)"]
+        UI["Fleet, Privacy, Edge Agents, Incidents & Settings"]
     end
+
+    K8s --> Col
+    Prom --> Col
+    Col --> Norm
+    Norm --> Priv
+    Priv --> LocAn
+    LocAn <--> LocMem
+    LocAn --> OffQ
+    OffQ --> Exp
+    Exp --"Approved Sanitized Metadata (TLS)"--> Ingest
+    Ingest --> TenantAuth
+    TenantAuth --> FleetEng
+    TenantAuth --> RemediationHub
+    OperatorConsole <--> Ingest
+    OperatorConsole <--> InsForgeAuth
 ```
 
 ---
@@ -58,16 +84,17 @@ graph TD
 
 | Domain | Technology | Purpose | Location |
 |---|---|---|---|
-| **Frontend Framework** | **Next.js 14 (App Router)** | High-performance interactive operator dashboard | `frontend/` |
+| **Tier 1: Edge Agent** | **Python 3.12 / FastAPI** | On-premise collector, local analyzer & Privacy Gateway | `edge-agent/` |
+| **Privacy Gateway** | **Structural Filtering & Regex Engine** | Detects & masks AWS keys, tokens, passwords; fail-closed | `edge-agent/privacy/` |
+| **Offline Durability** | **Persistent SQLite Buffer** | Local queue ensuring zero telemetry loss during outages | `edge-agent/queue/` |
+| **Tier 2: Cloud Backend** | **FastAPI (Python 3.12)** | Multi-tenant ingestion, fleet analytics & AIOps engine | `backend/app/` |
+| **Frontend Dashboard** | **Next.js 14 (App Router)** | 11 unified SRE modules with responsive dark UI | `frontend/src/` |
 | **Language (UI)** | **TypeScript / React 18** | Strict typed interfaces and component architecture | `frontend/src/` |
-| **Styling & Motion** | **Tailwind CSS & Framer Motion** | Dark obsidian UI with 60fps kinetic transitions | `frontend/src/app/globals.css` |
-| **Backend Framework** | **FastAPI (Python 3.12)** | Asynchronous REST API orchestrator & data normalizer | `backend/app/main.py` |
+| **Episodic Memory** | **Hindsight Memory Engine** | Private network isolated episodic banking (no login screen) | `hindsight/` |
 | **AI Reasoning** | **Google Gemini 2.5 Flash** | Multimodal correlation of telemetry & root cause analysis | `backend/app/ai/` |
-| **Episodic Memory** | **Hindsight Memory Engine** | Multi-tenant episodic banking (Retain, Recall, Reflect) | `hindsight/` |
-| **Reranker** | **hindsight-ai/hs-rerank-1** | Cross-encoder semantic reranking of past incidents | `hindsight/` |
-| **Authentication & DB** | **InsForge BaaS (Postgres)** | JWT OAuth verification & incident history persistence | `frontend/src/services/insforge.ts` |
-| **Kubernetes Client** | **Official Kubernetes Python Client** | Cluster discovery, pod logs, events, and API audit | `backend/app/kubernetes/` |
-| **Containerization** | **Docker & Docker Compose** | Multi-stage production container orchestration | `docker-compose.yml` |
+| **Authentication & DB** | **InsForge BaaS (Postgres)** | JWT OAuth verification & tenant data isolation | `frontend/src/services/insforge.ts` |
+| **Kubernetes Client** | **Official Kubernetes Python Client** | Cluster discovery, pod logs, events, and API audit | `edge-agent/collector/` |
+| **Containerization** | **Docker & Docker Compose** | Multi-service orchestration (Backend, Frontend, Edge, Hindsight) | `docker-compose.yml` |
 
 ---
 
@@ -75,37 +102,48 @@ graph TD
 
 ```text
 CLUSTERSAGE/
-├── frontend/                     # Next.js 14 Web Dashboard
+├── edge-agent/                   # Tier 1: Customer On-Premise Edge Agent
+│   ├── collector/                # K8s events, pods, nodes & Prometheus collector
+│   ├── normalizer/               # Schemas, error classification, deduplication
+│   ├── privacy/                  # Privacy Gateway: allowlist & credential sanitizer
+│   ├── analyzer/                 # Local offline defect analyzer (CrashLoop, OOM)
+│   ├── memory/                   # Local internal Hindsight memory client
+│   ├── policy/                   # Customer-specific export policies
+│   ├── queue/                    # Persistent SQLite-backed offline queue
+│   ├── exporter/                 # HTTPS batch exporter with exponential backoff
+│   ├── tests/                    # Edge agent unit & privacy tests
+│   ├── Dockerfile                # Hardened non-root Python 3.12 image
+│   └── main.py                   # Local daemon runtime & health API
+│
+├── frontend/                     # Next.js 14 Web Dashboard (11 Unified Modules)
 │   ├── src/                      # App router, components, services, and types
+│   │   └── components/           # EdgeAgentDashboard, FleetDashboard, PrivacyDashboard, etc.
 │   ├── public/                   # Static assets
 │   ├── Dockerfile                # Multi-stage optimized Node 20 build
 │   └── package.json
 │
-├── backend/                      # FastAPI Python Application
-│   ├── app/                      # API routers, AI reasoning, K8s inspector, services
-│   ├── tests/                    # 27 Pytest integration tests (Hindsight, runbooks, reports)
+├── backend/                      # Tier 2: FastAPI Cloud Platform
+│   ├── app/                      # API routers, fleet analytics, AI reasoning, remediation
+│   │   ├── api/v1/endpoints/     # agent.py, fleet.py, remediation.py, investigate.py
+│   │   └── services/             # fleet_service.py, hindsight_service.py, investigation.py
+│   ├── tests/                    # 15 Core Scenarios & integration test suites
 │   ├── Dockerfile                # Hardened Python 3.12 slim image with kubectl CLI
 │   └── requirements.txt
 │
-├── hindsight/                    # Hindsight Episodic Memory Engine
+├── hindsight/                    # Hindsight Episodic Memory Engine (Isolated)
 │   ├── docker-compose.yml        # Standalone Hindsight deployment
 │   ├── config/                   # Memory engine parameters
 │   └── README.md                 # Hindsight memory deep-dive documentation
 │
 ├── infrastructure/               # Infrastructure & Deployment Assets
-│   ├── docker/                   # Container topology & multi-stage build notes
-│   ├── kubernetes/               # RBAC policies & 5 failure triage scenarios
-│   └── deployment/               # High-availability production guidelines & NGINX config
+│   ├── kubernetes/               # RBAC policies & Edge Agent manifests
+│   │   └── edge-agent/           # deployment.yaml, rbac.yaml, configmap.yaml
+│   └── docker/                   # Container topology & multi-stage build notes
 │
 ├── docs/                         # Comprehensive Documentation
 │   ├── architecture.md           # System context, data flow, component breakdown
 │   ├── installation.md           # Step-by-step local & Docker installation guide
-│   ├── configuration.md          # Environment variable reference
-│   ├── deployment.md             # Production deployment & volume management
-│   ├── hindsight-integration.md  # Retain, Recall, and Reflect workflows
-│   ├── api-reference.md          # OpenAPI REST endpoint specifications
-│   ├── security.md               # Secret sanitization & token scrubbing policy
-│   └── troubleshooting.md        # Common diagnostics and fixes
+│   └── security.md               # Secret sanitization & token scrubbing policy
 │
 ├── scripts/                      # Developer & Operational Automation
 │   ├── setup.sh                  # Local environment initialization

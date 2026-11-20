@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: clustersage
+  labels:
+    app.kubernetes.io/name: clustersage
+    app.kubernetes.io/part-of: clustersage-aiops

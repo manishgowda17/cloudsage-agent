@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clustersage-edge-agent
+  namespace: clustersage
+  labels:
+    app.kubernetes.io/name: clustersage-edge-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clustersage-edge-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: clustersage-edge-agent
+    spec:
+      serviceAccountName: clustersage-edge-agent
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: agent
+          image: clustersage/edge-agent:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+              name: http
+          envFrom:
+            - configMapRef:
+                name: clustersage-edge-agent-config
+            - secretRef:
+                name: clustersage-edge-agent-secret
+          env:
+            - name: CLUSTERSAGE_AGENT_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: local-queue
+              mountPath: /app/data
+      volumes:
+        - name: local-queue
+          emptyDir: {}

@@ -29,7 +29,7 @@ async def get_hindsight_status(user: Dict[str, Any] = Depends(get_current_user))
     return HindsightStatusResponse(
         status="connected" if is_up else "offline",
         hindsight_url=hindsight_service.base_url,
-        hindsight_control_plane_url=getattr(settings, "HINDSIGHT_CONTROL_PLANE_URL", "http://localhost:9999"),
+        hindsight_control_plane_url="internal-isolated",
         sdk_available=hindsight_service.client is not None,
         user_bank_id=bank_id,
     )

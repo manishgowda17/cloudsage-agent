@@ -103,4 +103,39 @@ export const investigationService = {
     });
     return response.data;
   },
+
+  // --------------------------------------------------------------------------
+  // TIER 2: FLEET, EDGE AGENTS, PRIVACY & REMEDIATION ENDPOINTS
+  // --------------------------------------------------------------------------
+  async getFleetOverview(): Promise<import("@/types").FleetOverviewResponse> {
+    const response = await apiClient.get<import("@/types").FleetOverviewResponse>("/api/v1/fleet/overview");
+    return response.data;
+  },
+
+  async getRegisteredAgents(): Promise<{ organization_id: string; agents: import("@/types").EdgeAgentItem[] }> {
+    const response = await apiClient.get<{ organization_id: string; agents: import("@/types").EdgeAgentItem[] }>("/api/v1/agent/agents");
+    return response.data;
+  },
+
+  async getFleetIncidents(): Promise<{ organization_id: string; incidents: any[] }> {
+    const response = await apiClient.get<{ organization_id: string; incidents: any[] }>("/api/v1/fleet/incidents");
+    return response.data;
+  },
+
+  async getRemediationProposals(): Promise<import("@/types").RemediationProposal[]> {
+    const response = await apiClient.get<import("@/types").RemediationProposal[]>("/api/v1/remediation/proposals");
+    return response.data;
+  },
+
+  async approveRemediation(proposalId: string): Promise<import("@/types").RemediationProposal> {
+    const response = await apiClient.post<import("@/types").RemediationProposal>(`/api/v1/remediation/${proposalId}/approve`);
+    return response.data;
+  },
+
+  async rejectRemediation(proposalId: string, reason: string): Promise<import("@/types").RemediationProposal> {
+    const response = await apiClient.post<import("@/types").RemediationProposal>(`/api/v1/remediation/${proposalId}/reject`, {
+      reason,
+    });
+    return response.data;
+  },
 };

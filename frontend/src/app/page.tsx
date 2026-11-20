@@ -16,6 +16,10 @@ import { CinematicReveal } from "@/components/CinematicReveal";
 import { CinematicIntroAuth } from "@/components/CinematicIntroAuth";
 import { SwirlingVortex } from "@/components/SwirlingVortex";
 import { InfrastructureMap3D } from "@/components/InfrastructureMap3D";
+import { EdgeAgentDashboard } from "@/components/EdgeAgentDashboard";
+import { FleetDashboard } from "@/components/FleetDashboard";
+import { PrivacyDashboard } from "@/components/PrivacyDashboard";
+import { RemediationCenter } from "@/components/RemediationCenter";
 import { investigationService, InvestigationParams } from "@/services/investigationService";
 import { insforgeService } from "@/services/insforge";
 import {
@@ -302,7 +306,7 @@ export default function DashboardPage() {
           {activeTab === "overview" && (
             <div className="space-y-8">
               <HeroSection
-                onEnterInvestigation={() => setActiveTab("investigations")}
+                onEnterInvestigation={() => setActiveTab("incidents")}
                 onExploreMemory={() => setActiveTab("memory")}
                 onViewRunbooks={() => setActiveTab("runbooks")}
               />
@@ -318,6 +322,12 @@ export default function DashboardPage() {
                       Interactive 3D view of pods, nodes, and network routes in context [{selectedContext || "default"}]
                     </p>
                   </div>
+                  <button
+                    onClick={() => setActiveTab("infrastructure")}
+                    className="text-xs font-mono text-cyan-400 hover:text-cyan-300 transition"
+                  >
+                    Expand Full Map →
+                  </button>
                 </div>
                 <InfrastructureMap3D
                   cluster={selectedCluster}
@@ -329,19 +339,63 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {activeTab === "investigations" && (
-            <InvestigationCommandCenter
-              clusters={clusters}
-              selectedContext={selectedContext}
-              onSelectContext={(ctx) => setSelectedContext(ctx)}
-              onTriggerInvestigation={triggerInvestigation}
-              isInvestigating={isInvestigating}
-              steps={steps}
-              currentDiagnosis={currentDiagnosis}
-              currentHindsightMeta={currentHindsightMeta}
-              errorMsg={errorMsg}
-              onOpenPostMortemForIncident={handleOpenPostMortem}
-            />
+          {activeTab === "infrastructure" && (
+            <div className="space-y-6">
+              <div className="border-b border-slate-800/80 pb-4">
+                <h1 className="text-xl font-bold tracking-tight text-white font-mono">
+                  Infrastructure Spatial Visualizer
+                </h1>
+                <p className="text-xs text-slate-400 mt-1">
+                  Full 3D visualization of cluster topology, node pressure status, and pod health routing.
+                </p>
+              </div>
+              <div className="rounded-3xl bg-[#0F172A]/85 backdrop-blur-xl border border-slate-800/80 p-6 shadow-lg min-h-[600px]">
+                <InfrastructureMap3D
+                  cluster={selectedCluster}
+                  namespace={namespace}
+                  isInvestigating={isInvestigating}
+                  currentStep="complete"
+                />
+              </div>
+            </div>
+          )}
+
+          {activeTab === "clusters" && <FleetDashboard />}
+
+          {activeTab === "edge-agents" && <EdgeAgentDashboard />}
+
+          {activeTab === "fleet" && <FleetDashboard />}
+
+          {(activeTab === "incidents" || activeTab === "investigations") && (
+            <div className="space-y-8">
+              <InvestigationCommandCenter
+                clusters={clusters}
+                selectedContext={selectedContext}
+                onSelectContext={(ctx) => setSelectedContext(ctx)}
+                onTriggerInvestigation={triggerInvestigation}
+                isInvestigating={isInvestigating}
+                steps={steps}
+                currentDiagnosis={currentDiagnosis}
+                currentHindsightMeta={currentHindsightMeta}
+                errorMsg={errorMsg}
+                onOpenPostMortemForIncident={handleOpenPostMortem}
+              />
+              <div className="pt-4 border-t border-slate-800/80">
+                <h3 className="text-sm font-bold text-white font-mono mb-4">Historical Incident Audits</h3>
+                <InvestigationHistory
+                  items={historyItems}
+                  onSelectHistoryItem={(item) => {
+                    setCurrentDiagnosis({
+                      root_cause: item.root_cause,
+                      explanation: item.explanation || "",
+                      fix: item.suggested_fix || "",
+                      kubectl_command: item.kubectl_command || "kubectl get pods -A",
+                      confidence: item.confidence,
+                    });
+                  }}
+                />
+              </div>
+            </div>
           )}
 
           {activeTab === "history" && (
@@ -355,19 +409,30 @@ export default function DashboardPage() {
                   kubectl_command: item.kubectl_command || "kubectl get pods -A",
                   confidence: item.confidence,
                 });
-                setActiveTab("investigations");
+                setActiveTab("incidents");
               }}
             />
           )}
 
           {activeTab === "memory" && (
-            <MemoryBrowser
-              userBankId={user ? `user_${user.email?.split("@")[0]}` : "bank_default_cluster_sre"}
-              onSelectMemorySnippet={(text) => {
-                setActiveTab("investigations");
-              }}
-            />
+            <div className="space-y-8">
+              <MemoryBrowser
+                userBankId={user ? `user_${user.email?.split("@")[0]}` : "bank_default_cluster_sre"}
+                onSelectMemorySnippet={(text) => {
+                  setActiveTab("incidents");
+                }}
+              />
+              <div className="pt-4 border-t border-slate-800/80">
+                <RunbookCatalog />
+              </div>
+            </div>
           )}
+
+          {activeTab === "privacy" && <PrivacyDashboard />}
+
+          {(activeTab === "alerts" || activeTab === "insights") && <InsightsDashboard />}
+
+          {activeTab === "remediation" && <RemediationCenter />}
 
           {activeTab === "runbooks" && <RunbookCatalog />}
 
@@ -379,8 +444,6 @@ export default function DashboardPage() {
               }}
             />
           )}
-
-          {activeTab === "insights" && <InsightsDashboard />}
 
           {activeTab === "settings" && (
             <SettingsPanel

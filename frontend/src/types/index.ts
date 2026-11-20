@@ -305,7 +305,7 @@ export interface HindsightMetadata {
 export interface HindsightStatus {
   status: string;
   hindsight_url: string;
-  hindsight_control_plane_url: string;
+  hindsight_control_plane_url?: string;
   sdk_available: boolean;
   user_bank_id?: string;
 }
@@ -362,4 +362,66 @@ export interface ProgressStep {
   id: ProgressStepId;
   label: string;
   status: "pending" | "in_progress" | "completed";
+}
+
+export interface FleetClusterItem {
+  cluster_id: string;
+  cluster_name: string;
+  status: "healthy" | "degraded" | "critical";
+  total_nodes: number;
+  healthy_nodes: number;
+  total_pods: number;
+  degraded_pods: number;
+  reliability_score: number;
+  active_incidents: number;
+  last_heartbeat?: string;
+  agent_connected: boolean;
+}
+
+export interface FleetOverviewResponse {
+  organization_id: string;
+  total_clusters: number;
+  healthy_clusters: number;
+  degraded_clusters: number;
+  critical_clusters: number;
+  total_active_incidents: number;
+  fleet_reliability_score: number;
+  average_cpu_utilization: number;
+  average_memory_utilization: number;
+  recurring_failures: Array<{
+    pattern: string;
+    occurrences: number;
+    severity: string;
+  }>;
+  clusters: FleetClusterItem[];
+}
+
+export interface EdgeAgentItem {
+  agent_id: string;
+  org_id: string;
+  cluster_id: string;
+  cluster_name: string;
+  version: string;
+  status: string;
+  connected: boolean;
+  last_heartbeat: number;
+  pending_queue: number;
+  capabilities: string[];
+}
+
+export interface RemediationProposal {
+  proposal_id: string;
+  incident_id: string;
+  cluster_id: string;
+  resource_kind: string;
+  resource_name: string;
+  namespace: string;
+  action_type: string;
+  proposed_diff: string;
+  dry_run_validated: boolean;
+  safety_tier: string;
+  status: "pending_approval" | "approved" | "executed" | "rejected";
+  created_at: string;
+  approved_by?: string;
+  rejection_reason?: string;
 }

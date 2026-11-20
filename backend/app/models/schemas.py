@@ -373,7 +373,7 @@ class HindsightStatusResponse(BaseModel):
     """Status of Hindsight integration."""
     status: str
     hindsight_url: str
-    hindsight_control_plane_url: str
+    hindsight_control_plane_url: Optional[str] = "internal-isolated"
     sdk_available: bool
     user_bank_id: Optional[str] = None
 
@@ -389,3 +389,110 @@ class InvestigationResponse(BaseModel):
     investigation: Optional[Dict[str, Any]] = Field(default=None, description="Underlying Kubernetes evidence")
     user_id: Optional[str] = Field(default=None, description="Authenticated user ID who triggered investigation")
     hindsight: Optional[HindsightMetadata] = Field(default=None, description="Hindsight agent memory intelligence")
+
+
+# ==============================================================================
+# TIER 2: DISTRIBUTED AGENT INGESTION & FLEET INTELLIGENCE SCHEMAS
+# ==============================================================================
+
+class AgentRegistrationRequest(BaseModel):
+    """Registration payload from local edge agent."""
+    agent_id: str
+    organization_id: str
+    cluster_id: str
+    cluster_name: str
+    version: str = "1.0.0"
+    capabilities: List[str] = Field(default_factory=list)
+
+
+class AgentRegistrationResponse(BaseModel):
+    """Cloud registration confirmation for edge agent."""
+    status: str = "registered"
+    agent_id: str
+    organization_id: str
+    cluster_id: str
+    token_valid: bool = True
+    message: str = "Edge agent successfully registered with ClusterSage Cloud"
+
+
+class AgentHeartbeatRequest(BaseModel):
+    """Periodic health beacon from edge agent."""
+    agent_id: str
+    timestamp: float
+    status: str = "healthy"
+    pending_queue_count: int = 0
+
+
+class AgentHeartbeatResponse(BaseModel):
+    status: str = "acknowledged"
+    agent_id: str
+    server_time: float
+
+
+class IngestEventItem(BaseModel):
+    """Individual approved metadata event."""
+    category: str
+    data: Dict[str, Any]
+    created_at: float
+
+
+class AgentIngestBatchRequest(BaseModel):
+    """Batch ingestion payload from edge agent."""
+    agent_id: str
+    batch_size: int
+    events: List[IngestEventItem]
+
+
+class AgentIngestBatchResponse(BaseModel):
+    status: str = "accepted"
+    ingested_count: int
+    rejected_count: int = 0
+    idempotency_key: Optional[str] = None
+
+
+class FleetClusterItem(BaseModel):
+    """Summary of an individual registered cluster."""
+    cluster_id: str
+    cluster_name: str
+    status: str  # healthy, degraded, critical
+    total_nodes: int = 0
+    healthy_nodes: int = 0
+    total_pods: int = 0
+    degraded_pods: int = 0
+    reliability_score: float = 100.0
+    active_incidents: int = 0
+    last_heartbeat: Optional[str] = None
+    agent_connected: bool = True
+
+
+class FleetOverviewResponse(BaseModel):
+    """Aggregated multi-tenant fleet overview."""
+    organization_id: str
+    total_clusters: int = 0
+    healthy_clusters: int = 0
+    degraded_clusters: int = 0
+    critical_clusters: int = 0
+    total_active_incidents: int = 0
+    fleet_reliability_score: float = 100.0
+    average_cpu_utilization: float = 0.0
+    average_memory_utilization: float = 0.0
+    recurring_failures: List[Dict[str, Any]] = Field(default_factory=list)
+    clusters: List[FleetClusterItem] = Field(default_factory=list)
+
+
+class RemediationProposal(BaseModel):
+    """Human-in-the-loop remediation proposal."""
+    proposal_id: str
+    incident_id: str
+    cluster_id: str
+    resource_kind: str
+    resource_name: str
+    namespace: str
+    action_type: str  # restart_workload, scale_deployment, rollback_release, adjust_limits
+    proposed_diff: str
+    dry_run_validated: bool = True
+    safety_tier: str = "requires_human_approval"
+    status: str = "pending_approval"  # pending_approval, approved, executed, rejected
+    created_at: str
+    approved_by: Optional[str] = None
+    rejection_reason: Optional[str] = None
